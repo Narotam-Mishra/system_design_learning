@@ -1,0 +1,28 @@
+# macOS
+.DS_Store
+
+# Editor and IDE settings
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Temporary and generated files
+*.tmp
+*.log
+*.bak
+*.orig
+
+# Python environments and caches (for future examples/scripts)
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# JavaScript dependencies and build output (for future examples/apps)
+node_modules/
+dist/
+build/
+coverage/
