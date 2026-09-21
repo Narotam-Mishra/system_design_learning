@@ -729,3 +729,7 @@ The QuickRide example demonstrates that a successful application requires:
 - **HLD** for system architecture decisions
 - **LLD** for code structure and object design
 - **DSA** for efficient problem-solving within that structure
+
+---
+
+## 02. OOPs Real-World Examples | OOPs Pillars | Abstraction | Encapsulation (54:00)
