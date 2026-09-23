@@ -733,3 +733,4 @@ The QuickRide example demonstrates that a successful application requires:
 ---
 
 ## 02. OOPs Real-World Examples | OOPs Pillars | Abstraction | Encapsulation (54:00)
+
