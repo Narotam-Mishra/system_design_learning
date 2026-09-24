@@ -734,3 +734,1071 @@ The QuickRide example demonstrates that a successful application requires:
 
 ## 02. OOPs Real-World Examples | OOPs Pillars | Abstraction | Encapsulation (54:00)
 
+## Overview
+
+This lecture covers the **foundation of LLD - Object-Oriented Programming (OOP)**. It explains:
+1. History of programming paradigms
+2. Why OOPs was needed
+3. OOPs vs Procedural Programming
+4. The Ideology of OOPs
+5. **Abstraction** (with code)
+6. **Encapsulation** (with code)
+
+> **Note:** Inheritance and Polymorphism are covered in Part 2 of this lecture.
+
+---
+
+## 1. History of Programming Paradigms
+
+### Evolution Timeline
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      EVOLUTION OF PROGRAMMING                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌─────────────────┐                                                         │
+│  │ MACHINE LANGUAGE │  ← Binary (0s and 1s), Direct CPU interaction          │
+│  │    (1940s)       │     Example: 01010110 10110101                         │
+│  └────────┬────────┘                                                         │
+│           │ Problems: Very error-prone, tedious, not scalable               │
+│           ▼                                                                  │
+│  ┌─────────────────┐                                                         │
+│  │ ASSEMBLY LANGUAGE│  ← Mnemonics (MOV, ADD), English keywords              │
+│  │    (1950s)       │     Example: MOV A, 61H                                │
+│  └────────┬────────┘                                                         │
+│           │ Problems: Tightly coupled with hardware, still error-prone      │
+│           ▼                                                                  │
+│  ┌─────────────────┐                                                         │
+│  │   PROCEDURAL     │  ← Functions, Loops, If-Else, Switch                   │
+│  │   PROGRAMMING    │     Example: C Language                                │
+│  │    (1960s-70s)   │     Recipe-book style: "Do this, then do this"        │
+│  └────────┬────────┘                                                         │
+│           │ Problems: Not scalable for large apps, no real-world modeling   │
+│           ▼                                                                  │
+│  ┌─────────────────┐                                                         │
+│  │ OBJECT-ORIENTED  │  ← Classes, Objects, Inheritance, Polymorphism         │
+│  │   PROGRAMMING    │     Example: C++, Java, Python                         │
+│  │    (1980s+)      │     Models real-world entities                         │
+│  └─────────────────┘                                                         │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Detailed Comparison
+
+| Aspect | Machine Language | Assembly | Procedural | OOP |
+|--------|-----------------|----------|------------|-----|
+| **Unit** | Binary instructions | Mnemonics | Functions | Objects |
+| **Readability** | Extremely poor | Poor | Good | Excellent |
+| **Error Prone** | Very high | High | Medium | Low |
+| **Scalability** | None | Very low | Low | High |
+| **Real-world modeling** | No | No | No | Yes |
+| **Reusability** | None | None | Low | High |
+| **Hardware coupling** | Tight | Tight | Loose | Very loose |
+
+---
+
+## 2. Why OOPs Matter: Real-World Modeling
+
+### The Core Ideology
+
+> **"Just like your real world works, programming should work the same way."**
+
+In the real world:
+- **Everything is an object** (You, me, mic, laptop, car, TV)
+- **Objects interact with each other** (You interact with laptop, I interact with mic)
+
+So in programming:
+- We should **declare objects**
+- We should **make objects interact** with each other
+
+### The Fundamental Truth
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                              │
+│   Whenever you see OOP code, just understand:                               │
+│                                                                              │
+│   "Nothing is happening. A bunch of objects are interacting with each       │
+│    other. One object calls another object's method, or one object is        │
+│    passed as a parameter to another object. That's it."                     │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### What is an Object?
+
+An object has **two things**:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              OBJECT                                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   ┌─────────────────────────┐    ┌─────────────────────────┐                │
+│   │    CHARACTERISTICS      │    │       BEHAVIOR          │                │
+│   │    (Attributes/Data)    │    │    (Methods/Functions)  │                │
+│   ├─────────────────────────┤    ├─────────────────────────┤                │
+│   │ • Brand                 │    │ • startEngine()         │                │
+│   │ • Model                 │    │ • shiftGear()           │                │
+│   │ • isEngineOn            │    │ • accelerate()          │                │
+│   │ • currentSpeed          │    │ • brake()               │                │
+│   │ • currentGear           │    │ • stopEngine()          │                │
+│   └─────────────────────────┘    └─────────────────────────┘                │
+│                                                                              │
+│   Real-life Car Example:                                                     │
+│   • Characteristics: Brand=Ford, Model=Mustang, Engine=On                    │
+│   • Behavior: Start, Stop, Accelerate, Brake, Shift Gear                    │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 3. OOPs vs Procedural Programming
+
+### The Car & Owner Example
+
+**Scenario:** An owner owns a car and drives it.
+
+### Procedural Approach (Without OOPs)
+
+```java
+// PROBLEM: No classes, only variables and functions
+
+// Car characteristics as separate variables
+String brand1 = "Ford";
+String model1 = "Mustang";
+boolean isEngineOn1 = false;
+
+String brand2 = "Toyota";
+String model2 = "Camry";
+boolean isEngineOn2 = false;
+
+// Owner characteristics as separate variables
+String owner1Name = "John";
+String owner2Name = "Jane";
+
+// Functions for behavior
+void start(String brand, String model) {
+    System.out.println("Starting " + brand + " " + model);
+}
+
+void stop(String brand, String model) {
+    System.out.println("Stopping " + brand + " " + model);
+}
+
+void shiftGear(String brand, String model, int gear) {
+    System.out.println("Shifting " + brand + " to gear " + gear);
+}
+
+// Owner drives car
+void drive(String ownerName, String brand, String model) {
+    start(brand, model);
+    shiftGear(brand, model, 1);
+    // accelerate...
+    stop(brand, model);
+}
+
+// Calling
+drive(owner1Name, brand1, model1);
+```
+
+**Problems with Procedural Approach:**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    PROCEDURAL PROGRAMMING PROBLEMS                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  1. POOR REAL-WORLD MODELING                                                │
+│     • Can't represent "Owner owns Car" naturally                            │
+│     • Just a set of methods calling each other                              │
+│     • Hard to understand the actual relationship                            │
+│                                                                              │
+│  2. NO DATA SECURITY                                                        │
+│     • All variables are accessible from anywhere                            │
+│     • Anyone can change engine state, speed, etc.                           │
+│                                                                              │
+│  3. NOT SCALABLE                                                            │
+│     • Adding a new car means duplicating all variables                      │
+│     • brand3, model3, isEngineOn3... and so on                              │
+│                                                                              │
+│  4. NOT REUSABLE                                                            │
+│     • Can't easily reuse car logic in another application                   │
+│     • Tightly coupled with specific variable names                          │
+│                                                                              │
+│  5. HARD TO MAINTAIN                                                        │
+│     • Changing one thing requires changes in many places                    │
+│     • No encapsulation means bugs spread easily                             │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### OOP Approach
+
+```java
+// SOLUTION: Use classes and objects
+
+// Car class - blueprint for all cars
+class Car {
+    // Characteristics (Attributes)
+    private String brand;
+    private String model;
+    private boolean isEngineOn;
+    private int currentSpeed;
+    private int currentGear;
+    
+    // Constructor
+    public Car(String brand, String model) {
+        this.brand = brand;
+        this.model = model;
+        this.isEngineOn = false;
+        this.currentSpeed = 0;
+        this.currentGear = 0;
+    }
+    
+    // Behaviors (Methods)
+    public void startEngine() {
+        isEngineOn = true;
+        System.out.println(brand + " " + model + ": Engine started");
+    }
+    
+    public void shiftGear(int gear) {
+        if (!isEngineOn) {
+            System.out.println("Engine is off. Can't shift gear.");
+            return;
+        }
+        this.currentGear = gear;
+        System.out.println("Shifted to gear " + gear);
+    }
+    
+    public void accelerate() {
+        if (!isEngineOn) {
+            System.out.println("Engine is off. Can't accelerate.");
+            return;
+        }
+        currentSpeed += 20;
+        System.out.println("Accelerating to " + currentSpeed + " km/h");
+    }
+    
+    public void brake() {
+        currentSpeed = Math.max(0, currentSpeed - 20);
+        System.out.println("Braking. Speed: " + currentSpeed + " km/h");
+    }
+    
+    public void stopEngine() {
+        isEngineOn = false;
+        currentSpeed = 0;
+        currentGear = 0;
+        System.out.println("Engine turned off");
+    }
+    
+    // Getters
+    public int getCurrentSpeed() { return currentSpeed; }
+    public String getBrand() { return brand; }
+    public String getModel() { return model; }
+}
+
+// Owner class
+class Owner {
+    private String name;
+    private Car car;  // Owner HAS-A car (Composition)
+    
+    public Owner(String name, Car car) {
+        this.name = name;
+        this.car = car;
+    }
+    
+    public void drive() {
+        System.out.println(name + " is driving...");
+        car.startEngine();
+        car.shiftGear(1);
+        car.accelerate();
+        car.shiftGear(2);
+        car.accelerate();
+        car.brake();
+        car.stopEngine();
+    }
+}
+
+// Main
+public class Main {
+    public static void main(String[] args) {
+        Car myCar = new Car("Ford", "Mustang");
+        Owner owner = new Owner("John", myCar);
+        owner.drive();
+    }
+}
+```
+
+**Benefits of OOP Approach:**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       OOP BENEFITS                                           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  1. REAL-WORLD MODELING                                                     │
+│     • Owner owns Car - naturally represented                                │
+│     • Car has brand, model, engine state                                    │
+│     • Owner drives Car - clear interaction                                  │
+│                                                                              │
+│  2. DATA SECURITY                                                           │
+│     • Private variables - can't be changed directly                         │
+│     • Controlled access through methods                                     │
+│                                                                              │
+│  3. SCALABLE                                                                │
+│     • Create as many Car objects as needed                                  │
+│     • Car car1 = new Car("Ford", "Mustang");                                │
+│     • Car car2 = new Car("Toyota", "Camry");                                │
+│                                                                              │
+│  4. REUSABLE                                                                │
+│     • Car class can be used in any application                              │
+│     • Plug-and-play model                                                   │
+│                                                                              │
+│  5. MAINTAINABLE                                                            │
+│     • Changes in one place don't break everything                           │
+│     • Easy to debug                                                         │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 4. Pillars of OOPs
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         FOUR PILLARS OF OOPS                                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│                    ┌─────────────────────────┐                              │
+│                    │      ABSTRACTION        │                              │
+│                    │   (Hide unnecessary     │                              │
+│                    │    details from client)  │                              │
+│                    └───────────┬─────────────┘                              │
+│                                │                                             │
+│                    ┌───────────▼─────────────┐                              │
+│                    │     ENCAPSULATION       │                              │
+│                    │   (Wrap data & methods  │                              │
+│                    │    + Data Security)     │                              │
+│                    └───────────┬─────────────┘                              │
+│                                │                                             │
+│                    ┌───────────▼─────────────┐                              │
+│                    │      INHERITANCE        │                              │
+│                    │   (Child class inherits │                              │
+│                    │    parent properties)   │                              │
+│                    └───────────┬─────────────┘                              │
+│                                │                                             │
+│                    ┌───────────▼─────────────┐                              │
+│                    │      POLYMORPHISM       │                              │
+│                    │   (Many forms - same    │                              │
+│                    │    method, different    │                              │
+│                    │    behavior)            │                              │
+│                    └─────────────────────────┘                              │
+│                                                                              │
+│   Note: This lecture covers Abstraction & Encapsulation                     │
+│         Next part covers Inheritance & Polymorphism                         │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 5. Abstraction (Deep Dive)
+
+### Definition
+
+> **Abstraction hides unnecessary details from a client and showcases only what is necessary.**
+
+### Real-World Analogy: Driving a Car
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    DRIVING A CAR - WHAT YOU NEED TO KNOW                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   YOU NEED TO KNOW:                    YOU DON'T NEED TO KNOW:              │
+│   ┌─────────────────────┐              ┌─────────────────────┐              │
+│   │ • Turn key/press    │              │ • How engine works  │              │
+│   │   start button      │              │ • How gearbox works │              │
+│   │ • Press clutch      │              │ • How fuel injection│              │
+│   │ • Shift gear        │              │   works             │              │
+│   │ • Press accelerator │              │ • How brakes work   │              │
+│   │ • Press brake       │              │   internally        │              │
+│   └─────────────────────┘              └─────────────────────┘              │
+│                                                                              │
+│   The car provides an INTERFACE (steering, pedals, gear)                    │
+│   You interact with the interface, not the internal complexity              │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### More Examples
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    ABSTRACTION IN DAILY LIFE                                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   ┌──────────────┐    ┌──────────────┐    ┌──────────────┐                 │
+│   │   LAPTOP     │    │     TV       │    │   MOBILE     │                 │
+│   ├──────────────┤    ├──────────────┤    ├──────────────┤                 │
+│   │ Interface:   │    │ Interface:   │    │ Interface:   │                 │
+│   │ • Screen     │    │ • Remote     │    │ • Touchscreen│                 │
+│   │ • Keyboard   │    │ • Power btn  │    │ • Buttons    │                 │
+│   │ • Touchpad   │    │ • Volume btn │    │ • Apps       │                 │
+│   ├──────────────┤    ├──────────────┤    ├──────────────┤                 │
+│   │ Hidden:      │    │ Hidden:      │    │ Hidden:      │                 │
+│   │ • CPU arch   │    │ • Wiring     │    │ • OS kernel  │                 │
+│   │ • RAM timing │    │ • Signal     │    │ • Hardware   │                 │
+│   │ • Motherboard│    │   processing │    │   drivers    │                 │
+│   └──────────────┘    └──────────────┘    └──────────────┘                 │
+│                                                                              │
+│   Programming Languages themselves are an abstraction!                      │
+│   • You write: if (x > 0) { ... }                                          │
+│   • Compiler converts to: 01010110 10110101 ...                            │
+│   • You don't need to know how binary works                                 │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Abstraction: Two Objects Interacting
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    ABSTRACTION BETWEEN OBJECTS                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   ┌─────────────────────┐              ┌─────────────────────┐              │
+│   │     OBJECT 1        │              │     OBJECT 2        │              │
+│   │    (Client)         │              │    (Service)        │              │
+│   ├─────────────────────┤              ├─────────────────────┤              │
+│   │                     │              │                     │              │
+│   │  Only needs to know │─────────────▶│  • Hidden Data      │              │
+│   │  about behaviors:   │              │  • Hidden Methods   │              │
+│   │  • B1               │              │                     │              │
+│   │  • B2               │              │  • Public Behavior  │              │
+│   │                     │              │    B1, B2           │              │
+│   │  Doesn't need to    │              │                     │              │
+│   │  know HOW B1, B2    │              │  "I'll handle the   │              │
+│   │  are implemented    │              │   implementation"   │              │
+│   │                     │              │                     │              │
+│   └─────────────────────┘              └─────────────────────┘              │
+│                                                                              │
+│   Key: Client only knows WHAT the object can do,                            │
+│        not HOW it does it                                                   │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Code Example: Abstraction with Abstract Class
+
+```java
+// ABSTRACT CLASS - The Interface (Blueprint)
+abstract class Car {
+    // Abstract methods - only declarations, no implementation
+    // Child class MUST implement these
+    public abstract void startEngine();
+    public abstract void shiftGear(int gear);
+    public abstract void accelerate();
+    public abstract void brake();
+    public abstract void stopEngine();
+    
+    // Destructor (C++ concept)
+    // In Java, we use finalize() or AutoCloseable
+}
+
+// CONCRETE CLASS - Actual implementation
+class SportsCar extends Car {
+    private String brand;
+    private String model;
+    private boolean isEngineOn;
+    private int currentSpeed;
+    private int currentGear;
+    
+    public SportsCar(String brand, String model) {
+        this.brand = brand;
+        this.model = model;
+        this.isEngineOn = false;
+        this.currentSpeed = 0;
+        this.currentGear = 0;
+    }
+    
+    @Override
+    public void startEngine() {
+        isEngineOn = true;
+        System.out.println(brand + " " + model + ": Engine starts with a roar!");
+    }
+    
+    @Override
+    public void shiftGear(int gear) {
+        if (!isEngineOn) {
+            System.out.println("Engine is off. Can't shift gear.");
+            return;
+        }
+        this.currentGear = gear;
+        System.out.println("Shifted to gear " + gear);
+    }
+    
+    @Override
+    public void accelerate() {
+        if (!isEngineOn) {
+            System.out.println("Engine is off. Can't accelerate.");
+            return;
+        }
+        currentSpeed += 20;
+        System.out.println("Accelerating to " + currentSpeed + " km/h");
+    }
+    
+    @Override
+    public void brake() {
+        currentSpeed = Math.max(0, currentSpeed - 20);
+        System.out.println("Braking. Speed: " + currentSpeed + " km/h");
+    }
+    
+    @Override
+    public void stopEngine() {
+        isEngineOn = false;
+        currentSpeed = 0;
+        currentGear = 0;
+        System.out.println("Engine turned off");
+    }
+}
+
+// MAIN - Client Code
+public class Main {
+    public static void main(String[] args) {
+        // Parent reference pointing to child object
+        Car myCar = new SportsCar("Ford", "Mustang");
+        
+        // Client only knows the interface (abstract methods)
+        // Doesn't need to know HOW these are implemented
+        myCar.startEngine();    // Output: Ford Mustang: Engine starts with a roar!
+        myCar.shiftGear(1);     // Output: Shifted to gear 1
+        myCar.accelerate();     // Output: Accelerating to 20 km/h
+        myCar.shiftGear(2);     // Output: Shifted to gear 2
+        myCar.accelerate();     // Output: Accelerating to 40 km/h
+        myCar.brake();          // Output: Braking. Speed: 20 km/h
+        myCar.stopEngine();     // Output: Engine turned off
+    }
+}
+```
+
+### Abstraction Flow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         ABSTRACTION FLOW                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   ┌─────────────────────────────────────────────────────────────────────┐   │
+│   │                      ABSTRACT CLASS: Car                             │   │
+│   │  ┌─────────────────────────────────────────────────────────────┐   │   │
+│   │  │  virtual void startEngine() = 0;  // Pure virtual           │   │   │
+│   │  │  virtual void shiftGear(int) = 0; // Pure virtual           │   │   │
+│   │  │  virtual void accelerate() = 0;   // Pure virtual           │   │   │
+│   │  │  virtual void brake() = 0;        // Pure virtual           │   │   │
+│   │  │  virtual void stopEngine() = 0;   // Pure virtual           │   │   │
+│   │  └─────────────────────────────────────────────────────────────┘   │   │
+│   │                                                                      │   │
+│   │  "I only tell WHAT to do, not HOW to do it"                         │   │
+│   │  "Child classes will provide the HOW"                               │   │
+│   └─────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                         │
+│                                    │ extends/inherits                        │
+│                                    ▼                                         │
+│   ┌─────────────────────────────────────────────────────────────────────┐   │
+│   │                    CONCRETE CLASS: SportsCar                         │   │
+│   │  ┌─────────────────────────────────────────────────────────────┐   │   │
+│   │  │  void startEngine() { isEngineOn = true; ... }              │   │   │
+│   │  │  void shiftGear(int g) { currentGear = g; ... }             │   │   │
+│   │  │  void accelerate() { currentSpeed += 20; ... }              │   │   │
+│   │  │  void brake() { currentSpeed -= 20; ... }                   │   │   │
+│   │  │  void stopEngine() { isEngineOn = false; ... }              │   │   │
+│   │  └─────────────────────────────────────────────────────────────┘   │   │
+│   │                                                                      │   │
+│   │  "I provide the actual implementation of all abstract methods"      │   │
+│   └─────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                         │
+│                                    │ Client uses                            │
+│                                    ▼                                         │
+│   ┌─────────────────────────────────────────────────────────────────────┐   │
+│   │                         CLIENT CODE                                  │   │
+│   │                                                                      │   │
+│   │   Car myCar = new SportsCar("Ford", "Mustang");                     │   │
+│   │   myCar.startEngine();  // Client doesn't know internals            │   │
+│   │   myCar.accelerate();   // Just calls the interface                 │   │
+│   │   myCar.brake();                                                     │   │
+│   │                                                                      │   │
+│   └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 6. Encapsulation (Deep Dive)
+
+### Definition
+
+> **Encapsulation is the bundling of data (characteristics) and methods (behaviors) that operate on that data into a single unit (class), AND providing data security.**
+
+### The Capsule Analogy
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         CAPSULE ANALOGY                                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   ┌─────────────────────────────────────────────────────────────────────┐   │
+│   │                         MEDICINE CAPSULE                             │   │
+│   │  ┌─────────────────────────────────────────────────────────────┐   │   │
+│   │  │                                                              │   │   │
+│   │  │   ┌─────────────────────────────────────────────────────┐   │   │   │
+│   │  │   │              PROTECTED LAYER                        │   │   │   │
+│   │  │   │   ┌─────────────────────────────────────────────┐   │   │   │   │
+│   │  │   │   │           MEDICINE (Data)                   │   │   │   │   │
+│   │  │   │   │                                             │   │   │   │   │
+│   │  │   │   │   • Can't be accessed from outside          │   │   │   │   │
+│   │  │   │   │   • Must go through the capsule layer       │   │   │   │   │
+│   │  │   │   │                                             │   │   │   │   │
+│   │  │   │   └─────────────────────────────────────────────┘   │   │   │   │
+│   │  │   │                                                      │   │   │   │
+│   │  │   └─────────────────────────────────────────────────────┘   │   │   │
+│   │  │                                                              │   │   │
+│   │  └─────────────────────────────────────────────────────────────┘   │   │
+│   │                                                                      │   │
+│   │   Similarly in OOP:                                                  │   │
+│   │   • Class = Capsule                                                  │   │
+│   │   • Private Data = Medicine (protected)                              │   │
+│   │   • Public Methods = The way to interact with the capsule            │   │
+│   │                                                                      │   │
+│   └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Encapsulation Has TWO Requirements
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    TWO REQUIREMENTS OF ENCAPSULATION                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   REQUIREMENT 1: BUNDLING                                                    │
+│   ┌─────────────────────────────────────────────────────────────────────┐   │
+│   │  All characteristics AND behaviors of an object                     │   │
+│   │  must be bundled together in a single class.                        │   │
+│   │                                                                      │   │
+│   │  ┌─────────────────────────────────────────────────────────────┐   │   │
+│   │  │                    CLASS: Car                                │   │   │
+│   │  │  ┌─────────────────────┐  ┌─────────────────────────────┐  │   │   │
+│   │  │  │   CHARACTERISTICS   │  │        BEHAVIORS            │  │   │   │
+│   │  │  │   (Variables)       │  │        (Methods)            │  │   │   │
+│   │  │  ├─────────────────────┤  ├─────────────────────────────┤  │   │   │
+│   │  │  │ • brand             │  │ • startEngine()             │  │   │   │
+│   │  │  │ • model             │  │ • shiftGear()               │  │   │   │
+│   │  │  │ • isEngineOn        │  │ • accelerate()              │  │   │   │
+│   │  │  │ • currentSpeed      │  │ • brake()                   │  │   │   │
+│   │  │  │ • currentGear       │  │ • stopEngine()              │  │   │   │
+│   │  │  └─────────────────────┘  └─────────────────────────────┘  │   │   │
+│   │  └─────────────────────────────────────────────────────────────┘   │   │
+│   │                                                                      │   │
+│   └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                              │
+│   REQUIREMENT 2: DATA SECURITY                                               │
+│   ┌─────────────────────────────────────────────────────────────────────┐   │
+│   │  Some data must be protected from outside access.                   │   │
+│   │  Use access modifiers to control visibility.                        │   │
+│   │                                                                      │   │
+│   │  ┌─────────────────────────────────────────────────────────────┐   │   │
+│   │  │  private int currentSpeed;  // Can't be accessed directly   │   │   │
+│   │  │  public int getCurrentSpeed() { return currentSpeed; }      │   │   │
+│   │  │  // Controlled access through getter                        │   │   │
+│   │  └─────────────────────────────────────────────────────────────┘   │   │
+│   │                                                                      │   │
+│   └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Abstraction vs Encapsulation: Key Difference
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    ABSTRACTION vs ENCAPSULATION                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   ┌─────────────────────────────┐    ┌─────────────────────────────┐        │
+│   │        ABSTRACTION          │    │       ENCAPSULATION         │        │
+│   ├─────────────────────────────┤    ├─────────────────────────────┤        │
+│   │                             │    │                             │        │
+│   │  Focus: DATA HIDING         │    │  Focus: DATA SECURITY       │        │
+│   │                             │    │                             │        │
+│   │  "You don't NEED to know    │    │  "You MUST NOT know         │        │
+│   │   how engine works"         │    │   the odometer value"       │        │
+│   │                             │    │                             │        │
+│   │  If you find out,           │    │  If you find out,           │        │
+│   │  no harm done               │    │  security threat!           │        │
+│   │                             │    │                             │        │
+│   │  Example:                   │    │  Example:                   │        │
+│   │  • Car engine internals     │    │  • Odometer reading         │        │
+│   │  • TV wiring                │    │  • User passwords           │        │
+│   │  • Laptop motherboard       │    │  • Bank account balance     │        │
+│   │                             │    │                             │        │
+│   │  Implementation:            │    │  Implementation:            │        │
+│   │  • Abstract classes         │    │  • Private variables        │        │
+│   │  • Interfaces               │    │  • Getters/Setters          │        │
+│   │                             │    │  • Access modifiers         │        │
+│   │                             │    │                             │        │
+│   └─────────────────────────────┘    └─────────────────────────────┘        │
+│                                                                              │
+│   KEY INSIGHT:                                                               │
+│   Abstraction is about DESIGN (what to show)                                │
+│   Encapsulation is about IMPLEMENTATION (how to protect)                    │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Access Modifiers
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         ACCESS MODIFIERS (C++/Java)                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   ┌──────────────┬─────────────────────────────────────────────────────┐    │
+│   │  MODIFIER    │                  ACCESS LEVEL                        │    │
+│   ├──────────────┼─────────────────────────────────────────────────────┤    │
+│   │              │  Same Class │ Same Package │ Child Class │ World   │    │
+│   │  public      │     ✓       │      ✓      │      ✓      │   ✓     │    │
+│   │  protected   │     ✓       │      ✓      │      ✓      │   ✗     │    │
+│   │  private     │     ✓       │      ✗      │      ✗      │   ✗     │    │
+│   │  default     │     ✓       │      ✓      │      ✗      │   ✗     │    │
+│   └──────────────┴─────────────────────────────────────────────────────┘    │
+│                                                                              │
+│   In C++: public, private, protected                                         │
+│   In Java: public, private, protected, default (package-private)            │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Code Example: Encapsulation with Getters & Setters
+
+```java
+// ENCAPSULATION EXAMPLE
+
+public class SportsCar {
+    // CHARACTERISTICS - All private (Data Security)
+    private String brand;
+    private String model;
+    private boolean isEngineOn;
+    private int currentSpeed;
+    private int currentGear;
+    private String tyre;  // New characteristic
+    
+    // Constructor
+    public SportsCar(String brand, String model) {
+        this.brand = brand;
+        this.model = model;
+        this.isEngineOn = false;
+        this.currentSpeed = 0;
+        this.currentGear = 0;
+        this.tyre = "MRF";  // Default tyre
+    }
+    
+    // ==================== BEHAVIORS (Public Methods) ====================
+    
+    public void startEngine() {
+        isEngineOn = true;
+        System.out.println(brand + " " + model + ": Engine started");
+    }
+    
+    public void shiftGear(int gear) {
+        if (!isEngineOn) {
+            System.out.println("Engine is off. Can't shift gear.");
+            return;
+        }
+        this.currentGear = gear;
+        System.out.println("Shifted to gear " + gear);
+    }
+    
+    public void accelerate() {
+        if (!isEngineOn) {
+            System.out.println("Engine is off. Can't accelerate.");
+            return;
+        }
+        currentSpeed += 20;
+        System.out.println("Accelerating to " + currentSpeed + " km/h");
+    }
+    
+    public void brake() {
+        currentSpeed = Math.max(0, currentSpeed - 20);
+        System.out.println("Braking. Speed: " + currentSpeed + " km/h");
+    }
+    
+    public void stopEngine() {
+        isEngineOn = false;
+        currentSpeed = 0;
+        currentGear = 0;
+        System.out.println("Engine turned off");
+    }
+    
+    // ==================== GETTERS & SETTERS ====================
+    
+    // GETTER for currentSpeed (Read-only - no setter!)
+    public int getCurrentSpeed() {
+        return this.currentSpeed;
+    }
+    // Note: No setCurrentSpeed() - you can't directly set speed
+    // You must use accelerate() or brake()
+    
+    // GETTER and SETTER for tyre (Both allowed - with validation)
+    public String getTyre() {
+        return this.tyre;
+    }
+    
+    public void setTyre(String tyre) {
+        // VALIDATION: Check if tyre is valid
+        if (tyre == null || tyre.isEmpty()) {
+            System.out.println("Invalid tyre name!");
+            return;
+        }
+        
+        // VALIDATION: Check if tyre brand exists
+        if (!isValidTyreBrand(tyre)) {
+            System.out.println("Unknown tyre brand: " + tyre);
+            return;
+        }
+        
+        this.tyre = tyre;
+        System.out.println("Tyre changed to: " + tyre);
+    }
+    
+    private boolean isValidTyreBrand(String tyre) {
+        return tyre.equals("MRF") || tyre.equals("CEAT") || 
+               tyre.equals("Apollo") || tyre.equals("Michelin");
+    }
+    
+    // Getters for brand and model (read-only)
+    public String getBrand() { return brand; }
+    public String getModel() { return model; }
+}
+
+// MAIN - Demonstrating Encapsulation
+public class Main {
+    public static void main(String[] args) {
+        SportsCar myCar = new SportsCar("Ford", "Mustang");
+        
+        // ✅ ALLOWED: Using public methods
+        myCar.startEngine();
+        myCar.shiftGear(1);
+        myCar.accelerate();
+        myCar.shiftGear(2);
+        myCar.accelerate();
+        myCar.brake();
+        
+        // ✅ ALLOWED: Reading current speed through getter
+        System.out.println("Current Speed: " + myCar.getCurrentSpeed());
+        
+        // ❌ NOT ALLOWED: Direct access to private variable
+        // myCar.currentSpeed = 500;  // ERROR: currentSpeed has private access
+        
+        // ✅ ALLOWED: Using setter with validation
+        myCar.setTyre("Michelin");  // Valid
+        myCar.setTyre("FakeBrand"); // Invalid - will be rejected
+        
+        myCar.stopEngine();
+    }
+}
+```
+
+### What Happens Without Encapsulation
+
+```java
+// BAD: All public - No encapsulation
+class SportsCarBad {
+    public String brand;
+    public String model;
+    public boolean isEngineOn;
+    public int currentSpeed;  // PUBLIC - Anyone can change!
+    public int currentGear;
+    
+    // ...
+}
+
+// MAIN - Problems
+public class Main {
+    public static void main(String[] args) {
+        SportsCarBad myCar = new SportsCarBad();
+        
+        // PROBLEM: Directly setting impossible speed!
+        myCar.currentSpeed = 500;  // A sports car going 500 km/h?!
+        System.out.println("Speed: " + myCar.currentSpeed);  // Output: 500
+        
+        // PROBLEM: Setting speed to negative!
+        myCar.currentSpeed = -100;  // Negative speed?!
+        
+        // PROBLEM: Changing engine state directly!
+        myCar.isEngineOn = true;  // Without proper initialization!
+        
+        // This is why we need ENCAPSULATION!
+    }
+}
+```
+
+### Encapsulation with Real-World Example: Odometer
+
+```java
+public class Car {
+    // Private - can't be accessed directly
+    private int odometerReading;  // Total km driven
+    private int currentSpeed;
+    
+    public Car() {
+        this.odometerReading = 0;
+        this.currentSpeed = 0;
+    }
+    
+    // Odometer can only be READ, not written directly
+    public int getOdometerReading() {
+        return this.odometerReading;
+    }
+    
+    // No setOdometerReading() method!
+    // Odometer increases automatically as car moves
+    
+    public void accelerate() {
+        if (currentSpeed < 200) {
+            currentSpeed += 10;
+            // Odometer increases based on speed and time
+            odometerReading += 1;  // Simplified: 1 km per acceleration
+        }
+    }
+    
+    public void brake() {
+        currentSpeed = Math.max(0, currentSpeed - 10);
+    }
+}
+
+// Usage
+public class Main {
+    public static void main(String[] args) {
+        Car car = new Car();
+        
+        // Can READ odometer
+        System.out.println("Odometer: " + car.getOdometerReading());  // 0
+        
+        // Can't directly SET odometer
+        // car.odometerReading = 25000;  // ERROR: private access
+        
+        // Odometer changes through legitimate use
+        car.accelerate();  // Odometer becomes 1
+        car.accelerate();  // Odometer becomes 2
+        car.accelerate();  // Odometer becomes 3
+        
+        System.out.println("Odometer: " + car.getOdometerReading());  // 3
+    }
+}
+```
+
+---
+
+## 7. Complete Summary Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    OOP CONCEPTS - COMPLETE OVERVIEW                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   ┌─────────────────────────────────────────────────────────────────────┐   │
+│   │                         WHY OOPs?                                    │   │
+│   │  • Real-world modeling                                               │   │
+│   │  • Data security                                                     │   │
+│   │  • Scalability                                                       │   │
+│   │  • Reusability                                                       │   │
+│   │  • Maintainability                                                   │   │
+│   └─────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                         │
+│                                    ▼                                         │
+│   ┌─────────────────────────────────────────────────────────────────────┐   │
+│   │                      IDEOLOGY OF OOPs                                │   │
+│   │  "Just like your real world works, programming should work."        │   │
+│   │  Objects exist and interact with each other.                        │   │
+│   └─────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                         │
+│                                    ▼                                         │
+│   ┌─────────────────────────────────────────────────────────────────────┐   │
+│   │                        OBJECT = DATA + BEHAVIOR                      │   │
+│   │  ┌─────────────────────────┐  ┌─────────────────────────┐          │   │
+│   │  │   CHARACTERISTICS       │  │       BEHAVIOR          │          │   │
+│   │  │   (Variables)           │  │       (Methods)         │          │   │
+│   │  │   • brand               │  │       • startEngine()   │          │   │
+│   │  │   • model               │  │       • accelerate()    │          │   │
+│   │  │   • currentSpeed        │  │       • brake()         │          │   │
+│   │  └─────────────────────────┘  └─────────────────────────┘          │   │
+│   └─────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                         │
+│                                    ▼                                         │
+│   ┌─────────────────────────────────────────────────────────────────────┐   │
+│   │                         FOUR PILLARS                                 │   │
+│   │                                                                      │   │
+│   │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────┐│   │
+│   │  │ ABSTRACTION  │  │ENCAPSULATION │  │ INHERITANCE  │  │POLYMORPH ││   │
+│   │  ├──────────────┤  ├──────────────┤  ├──────────────┤  ├──────────┤│   │
+│   │  │ Hide         │  │ Bundle data  │  │ Child class  │  │ Many     ││   │
+│   │  │ unnecessary  │  │ + methods    │  │ inherits     │  │ forms    ││   │
+│   │  │ details      │  │ + Security   │  │ parent       │  │ of same  ││   │
+│   │  │              │  │              │  │ properties   │  │ method   ││   │
+│   │  │ Focus:       │  │ Focus:       │  │              │  │          ││   │
+│   │  │ DATA HIDING  │  │ DATA SECURITY│  │              │  │          ││   │
+│   │  │              │  │              │  │              │  │          ││   │
+│   │  │ Impl:        │  │ Impl:        │  │ Impl:        │  │ Impl:    ││   │
+│   │  │ Abstract     │  │ Private vars │  │ extends      │  │ Override ││   │
+│   │  │ classes,     │  │ + Getters/   │  │ keyword      │  │ methods  ││   │
+│   │  │ Interfaces   │  │ Setters      │  │              │  │          ││   │
+│   │  └──────────────┘  └──────────────┘  └──────────────┘  └──────────┘│   │
+│   │                                                                      │   │
+│   │  ◀─── COVERED IN THIS LECTURE ───▶  ◀── NEXT LECTURE ──▶            │   │
+│   └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 8. Key Takeaways
+
+### Abstraction
+- **What:** Hides unnecessary details, shows only what's needed
+- **Why:** Simplifies interaction, reduces complexity
+- **How:** Abstract classes, interfaces, pure virtual functions
+- **Real-world:** Car pedals/steering, TV remote, laptop screen
+- **Focus:** DATA HIDING (design level)
+
+### Encapsulation
+- **What:** Bundles data + methods in a class AND provides data security
+- **Why:** Protects sensitive data, controls access, enables validation
+- **How:** Access modifiers (private/public/protected), getters/setters
+- **Real-world:** Car odometer (read-only), speed (controlled via accelerate/brake)
+- **Focus:** DATA SECURITY (implementation level)
+
+### The Golden Difference
+```
+Abstraction: "You don't NEED to know" → Design decision
+Encapsulation: "You MUST NOT know" → Security decision
+```
+
+### Prerequisites for Next Lecture
+- Inheritance (Child class extends Parent class)
+- Polymorphism (Same method, different behavior)
+- Types: Compile-time (overloading) vs Runtime (overriding)
+
+---
+
+## 03. Inheritance & Polymorphism in OOPs (44:38)
+
+summaries system design tutorial transcript in details along with useful code examples and diagrams
