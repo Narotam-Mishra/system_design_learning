@@ -1801,4 +1801,486 @@ Encapsulation: "You MUST NOT know" → Security decision
 
 ## 03. Inheritance & Polymorphism in OOPs (44:38)
 
+This lecture completes the four pillars of Object-Oriented Programming (OOP) for Low-Level Design (LLD). It covers **Inheritance** and **Polymorphism**, building on the previous lecture's **Abstraction** and **Encapsulation**. The same `Car` example is extended throughout.
+
+---
+
+## 1. Inheritance
+
+### Concept
+
+Inheritance models **parent-child relationships** between real-world objects. A child class inherits characteristics and behaviors from a parent class, and can add its own specific features.
+
+**Real-world example:**
+- Parent: `Car` (generic)
+- Children: `ManualCar`, `ElectricCar`
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                          Car                                │
+│  Characteristics: brand, model, isEngineOn, currentSpeed    │
+│  Behaviors: startEngine(), stopEngine(), accelerate(),      │
+│             brake()                                         │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+           ┌───────────────┴───────────────┐
+           │                               │
+           ▼                               ▼
+┌─────────────────────┐         ┌─────────────────────┐
+│    ManualCar        │         │    ElectricCar      │
+│  + currentGear      │         │  + batteryPercentage│
+│  + shiftGear()      │         │  + chargeBattery()  │
+└─────────────────────┘         └─────────────────────┘
+```
+
+### Code Example (C++)
+
+```cpp
+#include <iostream>
+#include <string>
+using namespace std;
+
+class Car {
+protected:  // accessible by child classes, not outside
+    string brand;
+    string model;
+    bool isEngineOn;
+    int currentSpeed;
+
+public:
+    Car(string b, string m) : brand(b), model(m), isEngineOn(false), currentSpeed(0) {}
+
+    void startEngine() {
+        isEngineOn = true;
+        cout << brand << " " << model << ": Engine started\n";
+    }
+
+    void stopEngine() {
+        isEngineOn = false;
+        currentSpeed = 0;
+        cout << "Engine turned off\n";
+    }
+
+    void accelerate() {
+        if (!isEngineOn) { cout << "Engine is off. Can't accelerate.\n"; return; }
+        currentSpeed += 10;
+        cout << "Accelerating to " << currentSpeed << " km/h\n";
+    }
+
+    void brake() {
+        currentSpeed = max(0, currentSpeed - 10);
+        cout << "Braking. Speed: " << currentSpeed << " km/h\n";
+    }
+};
+
+class ManualCar : public Car {
+private:
+    int currentGear;
+public:
+    ManualCar(string b, string m) : Car(b, m), currentGear(0) {}
+
+    void shiftGear(int gear) {
+        currentGear = gear;
+        cout << "Shifted to gear " << gear << "\n";
+    }
+};
+
+class ElectricCar : public Car {
+private:
+    int batteryPercentage;
+public:
+    ElectricCar(string b, string m) : Car(b, m), batteryPercentage(100) {}
+
+    void chargeBattery() {
+        batteryPercentage = 100;
+        cout << "Battery fully charged\n";
+    }
+};
+
+int main() {
+    ManualCar wagonR("Suzuki", "Wagon R");
+    wagonR.startEngine();
+    wagonR.shiftGear(1);
+    wagonR.accelerate();
+    wagonR.brake();
+    wagonR.stopEngine();
+
+    ElectricCar tesla("Tesla", "Model S");
+    tesla.startEngine();
+    tesla.accelerate();
+    tesla.chargeBattery();
+    tesla.stopEngine();
+}
+```
+
+**Output:**
+```
+Suzuki Wagon R: Engine started
+Shifted to gear 1
+Accelerating to 10 km/h
+Braking. Speed: 0 km/h
+Engine turned off
+Tesla Model S: Engine started
+Accelerating to 10 km/h
+Battery fully charged
+Engine turned off
+```
+
+### Access Modifiers & Inheritance Types
+
+| Modifier | Same Class | Child Class | Outside |
+|----------|------------|-------------|---------|
+| `public` | ✓ | ✓ | ✓ |
+| `protected` | ✓ | ✓ | ✗ |
+| `private` | ✓ | ✗ | ✗ |
+
+**Inheritance access specifiers:**
+
+| Inheritance Type | `public` members in parent become | `protected` members become |
+|------------------|-----------------------------------|----------------------------|
+| `public` | `public` | `protected` |
+| `protected` | `protected` | `protected` |
+| `private` | `private` | `private` |
+
+> **Practical note:** In 99% of real-world LLD and system design, **public inheritance** is used. Private/protected inheritance breaks the "is-a" relationship and is rarely used.
+
+---
+
+## 2. Polymorphism
+
+### Concept
+
+**Polymorphism** = "many forms". The same method call can behave differently depending on the object or parameters.
+
+**Two real-world scenarios:**
+1. Different animals (`Duck`, `Human`, `Tiger`) all have `run()`, but each runs differently.
+2. The same `Human` runs differently depending on situation (tired vs. chased by a tiger) — same object, different parameter.
+
+### Types of Polymorphism
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      POLYMORPHISM                           │
+├──────────────────────────┬──────────────────────────────────┤
+│   Dynamic Polymorphism   │     Static Polymorphism          │
+│   (Runtime)              │     (Compile-time)               │
+│   Method Overriding      │     Method Overloading           │
+│   Virtual functions      │     Same name, different params  │
+└──────────────────────────┴──────────────────────────────────┘
+```
+
+---
+
+### Dynamic Polymorphism (Method Overriding)
+
+**Definition:** A child class provides a specific implementation of a method already declared in the parent class. The method signature must be identical. In C++, the parent method must be `virtual`.
+
+**Car Example:**
+- `Car` declares `virtual void accelerate()` and `virtual void brake()`.
+- `ManualCar` overrides `accelerate()` to increase speed by 20 km/h.
+- `ElectricCar` overrides `accelerate()` to increase speed by 15 km/h and decrease battery.
+
+```cpp
+class Car {
+protected:
+    string brand, model;
+    bool isEngineOn;
+    int currentSpeed;
+public:
+    Car(string b, string m) : brand(b), model(m), isEngineOn(false), currentSpeed(0) {}
+
+    void startEngine() { isEngineOn = true; cout << brand << " " << model << ": Engine started\n"; }
+    void stopEngine() { isEngineOn = false; currentSpeed = 0; cout << "Engine turned off\n"; }
+
+    virtual void accelerate() = 0;  // pure virtual
+    virtual void brake() = 0;
+};
+
+class ManualCar : public Car {
+private:
+    int currentGear;
+public:
+    ManualCar(string b, string m) : Car(b, m), currentGear(0) {}
+
+    void shiftGear(int gear) { currentGear = gear; cout << "Shifted to gear " << gear << "\n"; }
+
+    void accelerate() override {
+        if (!isEngineOn) return;
+        currentSpeed += 20;
+        cout << "Manual accelerating to " << currentSpeed << " km/h\n";
+    }
+
+    void brake() override {
+        currentSpeed = max(0, currentSpeed - 20);
+        cout << "Manual braking. Speed: " << currentSpeed << " km/h\n";
+    }
+};
+
+class ElectricCar : public Car {
+private:
+    int batteryPercentage;
+public:
+    ElectricCar(string b, string m) : Car(b, m), batteryPercentage(100) {}
+
+    void chargeBattery() { batteryPercentage = 100; cout << "Battery fully charged\n"; }
+
+    void accelerate() override {
+        if (!isEngineOn || batteryPercentage <= 0) return;
+        batteryPercentage -= 5;
+        currentSpeed += 15;
+        cout << "Electric accelerating to " << currentSpeed << " km/h, battery: "
+             << batteryPercentage << "%\n";
+    }
+
+    void brake() override {
+        currentSpeed = max(0, currentSpeed - 15);
+        cout << "Regenerative braking. Speed: " << currentSpeed << " km/h\n";
+    }
+};
+
+int main() {
+    ManualCar wagonR("Suzuki", "Wagon R");
+    ElectricCar tesla("Tesla", "Model S");
+
+    wagonR.startEngine();
+    wagonR.accelerate();  // 20 km/h
+    wagonR.accelerate();  // 40 km/h
+    wagonR.brake();       // 20 km/h
+    wagonR.stopEngine();
+
+    tesla.startEngine();
+    tesla.accelerate();   // 15 km/h, battery 95%
+    tesla.accelerate();   // 30 km/h, battery 90%
+    tesla.brake();        // 15 km/h
+    tesla.stopEngine();
+}
+```
+
+**Output:**
+```
+Suzuki Wagon R: Engine started
+Manual accelerating to 20 km/h
+Manual accelerating to 40 km/h
+Manual braking. Speed: 20 km/h
+Engine turned off
+Tesla Model S: Engine started
+Electric accelerating to 15 km/h, battery: 95%
+Electric accelerating to 30 km/h, battery: 90%
+Regenerative braking. Speed: 15 km/h
+Engine turned off
+```
+
+---
+
+### Static Polymorphism (Method Overloading)
+
+**Definition:** Multiple methods with the **same name** but **different parameter lists** (different number or types of arguments). Resolved at compile time.
+
+**Car Example:**
+- `ManualCar` has two `accelerate()` methods:
+  - `accelerate()` → default acceleration (+20 km/h)
+  - `accelerate(int speed)` → custom acceleration
+
+```cpp
+class ManualCar {
+private:
+    string brand, model;
+    bool isEngineOn;
+    int currentSpeed;
+    int currentGear;
+public:
+    ManualCar(string b, string m) : brand(b), model(m), isEngineOn(false),
+                                    currentSpeed(0), currentGear(0) {}
+
+    void startEngine() { isEngineOn = true; cout << "Engine started\n"; }
+    void stopEngine() { isEngineOn = false; currentSpeed = 0; cout << "Engine turned off\n"; }
+
+    // Overloaded methods
+    void accelerate() {
+        if (!isEngineOn) return;
+        currentSpeed += 20;
+        cout << "Accelerating to " << currentSpeed << " km/h\n";
+    }
+
+    void accelerate(int speed) {
+        if (!isEngineOn) return;
+        currentSpeed += speed;
+        cout << "Accelerating by " << speed << " to " << currentSpeed << " km/h\n";
+    }
+
+    void brake() {
+        currentSpeed = max(0, currentSpeed - 20);
+        cout << "Braking. Speed: " << currentSpeed << " km/h\n";
+    }
+
+    void shiftGear(int gear) {
+        currentGear = gear;
+        cout << "Shifted to gear " << gear << "\n";
+    }
+};
+
+int main() {
+    ManualCar car("Suzuki", "Wagon R");
+    car.startEngine();
+    car.accelerate();      // +20
+    car.accelerate(40);    // +40 → total 60
+    car.brake();           // -20 → 40
+    car.stopEngine();
+}
+```
+
+**Output:**
+```
+Engine started
+Accelerating to 20 km/h
+Accelerating by 40 to 60 km/h
+Braking. Speed: 40 km/h
+Engine turned off
+```
+
+---
+
+## 3. Combined Example: All Four Pillars
+
+The lecture ends with a single program that demonstrates **Abstraction, Encapsulation, Inheritance, and both types of Polymorphism**.
+
+```cpp
+// Abstract base class (Abstraction)
+class Car {
+protected:  // Encapsulation (protected access)
+    string brand, model;
+    bool isEngineOn;
+    int currentSpeed;
+public:
+    Car(string b, string m) : brand(b), model(m), isEngineOn(false), currentSpeed(0) {}
+
+    void startEngine() { isEngineOn = true; cout << brand << " " << model << ": Engine started\n"; }
+    void stopEngine() { isEngineOn = false; currentSpeed = 0; cout << "Engine turned off\n"; }
+
+    // Dynamic polymorphism (virtual + overloading)
+    virtual void accelerate() = 0;
+    virtual void accelerate(int speed) = 0;
+    virtual void brake() = 0;
+};
+
+class ManualCar : public Car {  // Inheritance
+private:
+    int currentGear;
+public:
+    ManualCar(string b, string m) : Car(b, m), currentGear(0) {}
+
+    void shiftGear(int gear) { currentGear = gear; cout << "Shifted to gear " << gear << "\n"; }
+
+    void accelerate() override { if (!isEngineOn) return; currentSpeed += 20; cout << "Manual accelerating to " << currentSpeed << " km/h\n"; }
+    void accelerate(int speed) override { if (!isEngineOn) return; currentSpeed += speed; cout << "Manual accelerating by " << speed << " to " << currentSpeed << " km/h\n"; }
+    void brake() override { currentSpeed = max(0, currentSpeed - 20); cout << "Manual braking. Speed: " << currentSpeed << " km/h\n"; }
+};
+
+class ElectricCar : public Car {
+private:
+    int batteryPercentage;
+public:
+    ElectricCar(string b, string m) : Car(b, m), batteryPercentage(100) {}
+
+    void chargeBattery() { batteryPercentage = 100; cout << "Battery fully charged\n"; }
+
+    void accelerate() override { if (!isEngineOn || batteryPercentage <= 0) return; batteryPercentage -= 5; currentSpeed += 15; cout << "Electric accelerating to " << currentSpeed << " km/h, battery: " << batteryPercentage << "%\n"; }
+    void accelerate(int speed) override { if (!isEngineOn || batteryPercentage <= 0) return; batteryPercentage -= 5; currentSpeed += speed; cout << "Electric accelerating by " << speed << " to " << currentSpeed << " km/h, battery: " << batteryPercentage << "%\n"; }
+    void brake() override { currentSpeed = max(0, currentSpeed - 15); cout << "Regenerative braking. Speed: " << currentSpeed << " km/h\n"; }
+};
+
+int main() {
+    ManualCar wagonR("Suzuki", "Wagon R");
+    ElectricCar tesla("Tesla", "Model S");
+
+    wagonR.startEngine();
+    wagonR.accelerate();      // overridden + overloaded
+    wagonR.accelerate(40);
+    wagonR.brake();
+    wagonR.stopEngine();
+
+    tesla.startEngine();
+    tesla.accelerate();
+    tesla.accelerate(30);
+    tesla.brake();
+    tesla.stopEngine();
+}
+```
+
+**This single example demonstrates:**
+- **Abstraction:** `Car` hides implementation details behind pure virtual functions.
+- **Encapsulation:** All data members are `protected` or `private`.
+- **Inheritance:** `ManualCar` and `ElectricCar` inherit from `Car`.
+- **Dynamic Polymorphism:** `accelerate()` and `brake()` are overridden.
+- **Static Polymorphism:** `accelerate()` and `accelerate(int)` are overloaded.
+
+---
+
+## 4. Key Takeaways
+
+| Concept | Definition | Key Mechanism |
+|---------|------------|---------------|
+| **Inheritance** | Child class acquires properties of parent | `class Child : public Parent` |
+| **Dynamic Polymorphism** | Same method signature, different behavior at runtime | `virtual` + `override` |
+| **Static Polymorphism** | Same method name, different parameters at compile time | Method overloading |
+| **Access Modifiers** | Control visibility | `public`, `protected`, `private` |
+
+**Method Overloading vs Overriding:**
+
+| Feature | Overloading | Overriding |
+|---------|-------------|------------|
+| Signature | Same name, different parameters | Same name, same parameters |
+| Class | Same class (or across inheritance) | Parent-child |
+| Binding | Compile-time | Runtime |
+| Keyword | — | `virtual` / `override` |
+
+**Practical note:** Always use **public inheritance** in real LLD. Private/protected inheritance is rare and breaks the "is-a" relationship.
+
+---
+
+## 5. Homework (from the lecture)
+
+1. **What is operator overloading in C++?** Provide examples.
+2. **Why do Java and Python not support operator overloading, while C++ does?** Discuss design trade-offs.
+
+---
+
+## 6. Summary Diagram: All Four Pillars Together
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         OOP PILLARS                                  │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   ┌──────────────┐    ┌──────────────┐    ┌──────────────┐          │
+│   │ ABSTRACTION  │    │ENCAPSULATION │    │ INHERITANCE  │          │
+│   │              │    │              │    │              │          │
+│   │ Hide details │    │ Bundle data  │    │ Child gets   │          │
+│   │ Show only    │    │ + methods    │    │ parent props │          │
+│   │ what's needed│    │ + security   │    │ + own props  │          │
+│   │              │    │              │    │              │          │
+│   │ e.g., pure   │    │ e.g., private│    │ e.g., Manual │          │
+│   │ virtual      │    │ members +    │    │ Car : Car    │          │
+│   │ functions    │    │ getters/     │    │              │          │
+│   │              │    │ setters      │    │              │          │
+│   └──────────────┘    └──────────────┘    └──────────────┘          │
+│                                                                      │
+│   ┌──────────────────────────────────────────────────────────────┐  │
+│   │                       POLYMORPHISM                            │  │
+│   │                                                               │  │
+│   │   ┌─────────────────────┐    ┌─────────────────────────┐     │  │
+│   │   │ Dynamic (Runtime)   │    │ Static (Compile-time)   │     │  │
+│   │   │ Method Overriding   │    │ Method Overloading      │     │  │
+│   │   │ virtual + override  │    │ same name, diff params  │     │  │
+│   │   └─────────────────────┘    └─────────────────────────┘     │  │
+│   └──────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+│   All four together = Complete OOP foundation for LLD               │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 04. What is UML Diagrams | Class & Sequence Diagrams with Real Examples (1:12:09)
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
