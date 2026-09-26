@@ -2283,5 +2283,687 @@ int main() {
 
 ## 04. What is UML Diagrams | Class & Sequence Diagrams with Real Examples (1:12:09)
 
+This lecture introduces **UML (Unified Modeling Language) Diagrams**, focusing on the two most important types for LLD: **Class Diagrams** (Structural) and **Sequence Diagrams** (Behavioral).
+
+---
+
+## 1. What are UML Diagrams?
+
+**UML Diagrams** are a visual way to express an application's design — what components/objects exist, how they're connected, and how they interact.
+
+- UML stands for Unified Modeling Language.
+
+**Why use diagrams instead of paragraphs?**
+- Intuitive and easy to understand
+- Clearly shows components, objects, and their interactions
+- Standardized notation understood across the industry
+
+---
+
+## 2. Types of UML Diagrams
+
+UML diagrams are split into **two categories**:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         UML DIAGRAMS                                 │
+├──────────────────────────────┬──────────────────────────────────────┤
+│       STRUCTURAL             │          BEHAVIORAL                  │
+│       (Static)               │          (Dynamic)                   │
+├──────────────────────────────┼──────────────────────────────────────┤
+│ • Show application structure │ • Show how components interact       │
+│ • What components exist      │ • How objects send messages          │
+│ • How they're connected      │ • Object interactions over time      │
+│                              │                                      │
+│ ⭐ Class Diagram             │ ⭐ Sequence Diagram                   │
+│   (99% of LLD interviews)    │   (Important for specific use cases) │
+├──────────────────────────────┼──────────────────────────────────────┤
+│ 7 types total                │ 7 types total                        │
+│ (Only Class Diagram needed)  │ (Only Sequence Diagram needed)       │
+└──────────────────────────────┴──────────────────────────────────────┘
+```
+
+**Note:** Of the 14 total UML diagram types, only **2 are needed** for LLD: **Class Diagram** and **Sequence Diagram**. The rest are highly use-case specific.
+
+---
+
+## 3. Class Diagrams
+
+### 3.1 Representing a Class
+
+A class is represented as a **rectangle divided into 3 parts**:
+
+```
+┌─────────────────────────────────────┐
+│           <<abstract>>              │  ← Optional: abstract marker
+│              Car                    │  ← PART 1: Class Name
+├─────────────────────────────────────┤
+│ - brand: String                     │  ← PART 2: Characteristics
+│ - model: String                     │     (Variables/Attributes)
+│ - engineCC: int                     │
+├─────────────────────────────────────┤
+│ + startEngine(): void               │  ← PART 3: Behaviors
+│ + stopEngine(): void                │     (Methods/Functions)
+│ + accelerate(): void                │
+│ + brake(): void                     │
+└─────────────────────────────────────┘
+```
+
+**Format:** `accessModifier variableName: dataType` and `accessModifier methodName(): returnType`
+
+### 3.2 Access Modifiers in UML
+
+| Access Modifier | UML Symbol | Accessible From |
+|-----------------|------------|-----------------|
+| `public` | `+` | Everywhere |
+| `protected` | `#` | Same class + Child classes |
+| `private` | `-` | Same class only |
+
+**Example with mixed modifiers:**
+```
+┌─────────────────────────────────────┐
+│              Car                    │
+├─────────────────────────────────────┤
+│ - brand: String          (private)  │
+│ # model: String          (protected)│
+│ + engineCC: int          (public)   │
+├─────────────────────────────────────┤
+│ + startEngine(): void               │
+│ - validateEngine(): boolean         │
+│ # internalCheck(): void             │
+└─────────────────────────────────────┘
+```
+
+### 3.3 Class Diagram Example (C++ Code)
+
+```cpp
+class Car {
+private:
+    string brand;
+    string model;
+    int engineCC;
+
+public:
+    void startEngine() { /* ... */ }
+    void stopEngine() { /* ... */ }
+    void accelerate() { /* ... */ }
+    void brake() { /* ... */ }
+};
+```
+
+**UML Representation:**
+```
+┌─────────────────────────────────────┐
+│              Car                    │
+├─────────────────────────────────────┤
+│ - brand: String                     │
+│ - model: String                     │
+│ - engineCC: int                     │
+├─────────────────────────────────────┤
+│ + startEngine(): void               │
+│ + stopEngine(): void                │
+│ + accelerate(): void                │
+│ + brake(): void                     │
+└─────────────────────────────────────┘
+```
+
+---
+
+## 4. Class Associations
+
+### 4.1 Association Hierarchy
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         ASSOCIATIONS                                 │
+├──────────────────────────────────┬──────────────────────────────────┤
+│       CLASS ASSOCIATION          │      OBJECT ASSOCIATION          │
+│                                  │                                  │
+│   ⭐ Inheritance                 │   ⭐ Simple Association          │
+│      (IS-A relationship)         │   ⭐ Aggregation                 │
+│                                  │   ⭐ Composition                 │
+│                                  │      (all are HAS-A)             │
+└──────────────────────────────────┴──────────────────────────────────┘
+```
+
+**Key insight:** Simple Association, Aggregation, and Composition are all **combined into one "Composition" concept** in programming — they differ only theoretically/conceptually.
+
+---
+
+### 4.2 Inheritance (IS-A Relationship)
+
+**Definition:** Child class inherits parent class properties and behaviors.
+
+**Real-world examples:**
+- Cow IS-A Animal
+- Tiger IS-A Animal
+- ManualCar IS-A Car
+- ElectricCar IS-A Car
+
+**UML Notation:** Solid line with a **closed (hollow) arrowhead** pointing to parent.
+
+```
+┌──────────────┐
+│    Animal    │
+└──────┬───────┘
+       △
+       │  (closed arrow = inheritance)
+       │
+  ┌────┴────┬──────────┐
+  │         │          │
+┌─┴──┐   ┌──┴──┐   ┌───┴───┐
+│Cow │   │Tiger│   │Human  │
+└────┘   └─────┘   └───────┘
+```
+
+**Code:**
+```cpp
+class Animal {
+public:
+    void eat() { /* ... */ }
+};
+
+class Cow : public Animal {
+public:
+    void moo() { /* ... */ }
+};
+```
+
+---
+
+### 4.3 Simple Association (Weakest HAS-A)
+
+**Definition:** Two classes are related through a simple link — one object uses/has another, but no ownership.
+
+**Real-world example:** Arjun lives in a House (Arjun HAS-A House)
+
+**UML Notation:** Solid line with an **open arrow**.
+
+```
+┌──────────┐         ┌──────────┐
+│  Arjun   │────────▶│  House   │
+└──────────┘  open   └──────────┘
+              arrow
+```
+
+---
+
+### 4.4 Aggregation (Container HAS-A)
+
+**Definition:** A container object holds multiple other objects. The contained objects **can exist independently** of the container.
+
+**Real-world example:** Room HAS-A Sofa, Bed, Chair (but Sofa/Bed/Chair can exist without Room)
+
+**UML Notation:** Solid line with a **hollow (unfilled) diamond** on the container side.
+
+```
+┌──────────┐
+│   Room   │
+└────┬─────┘
+     ◇ (hollow diamond)
+     │
+  ┌──┴────┬─────────┐
+  │       │         │
+┌─┴──┐ ┌──┴──┐ ┌───┴────┐
+│Sofa│ │Bed  │ │Chair   │
+└────┘ └─────┘ └────────┘
+
+Note: Diamond points toward the CONTAINER (Room)
+     "Sofa IS PART OF Room"
+```
+
+**Code:**
+```cpp
+class Room {
+private:
+    Sofa* sofa;    // pointer - can exist independently
+    Bed* bed;
+    Chair* chair;
+public:
+    Room(Sofa* s, Bed* b, Chair* c) : sofa(s), bed(b), chair(c) {}
+};
+```
+
+---
+
+### 4.5 Composition (Strongest HAS-A)
+
+**Definition:** A strong ownership where the contained objects **cannot exist independently** of the container. If the container dies, the parts die too.
+
+**Real-world example:** Chair HAS-A Seat, Arms, Wheels (these cannot exist without the chair)
+
+**UML Notation:** Solid line with a **filled (solid) diamond** on the container side.
+
+```
+┌──────────┐
+│  Chair   │
+└────┬─────┘
+     ◆ (filled diamond)
+     │
+  ┌──┴────┬─────────┐
+  │       │         │
+┌─┴────┐ ┌─┴──┐ ┌──┴─────┐
+│Seat  │ │Arms│ │Wheels  │
+└──────┘ └────┘ └────────┘
+
+"Seat, Arms, Wheels cannot exist without Chair"
+```
+
+**Code:**
+```cpp
+class Chair {
+private:
+    Seat seat;      // value - tied to Chair's lifecycle
+    Arms arms;
+    Wheels wheels;
+public:
+    Chair() : seat(), arms(), wheels() {}
+};
+```
+
+---
+
+### 4.6 Composition in Code (General Pattern)
+
+Regardless of whether it's Simple Association, Aggregation, or Composition, the **programmatic representation is the same**:
+
+```cpp
+class A {
+public:
+    void method1() { /* ... */ }
+};
+
+class B {
+private:
+    A* a;  // Reference to A (HAS-A relationship)
+public:
+    B() {
+        a = new A();  // Or passed in constructor
+    }
+    
+    void method2() {
+        // Call method1 on A's object
+        a->method1();
+    }
+};
+
+int main() {
+    B* b = new B();
+    b->method2();  // Internally calls a->method1()
+}
+```
+
+**Key insight:** Composition is **more important than inheritance** in LLD. Most real-world designs use composition.
+
+---
+
+### 4.7 Association Summary Table
+
+| Relationship | Notation | Meaning | Example |
+|-------------|----------|---------|---------|
+| **Inheritance** | Closed arrow | IS-A | ManualCar IS-A Car |
+| **Simple Association** | Open arrow | Uses / Lives-in | Arjun HAS-A House |
+| **Aggregation** | Hollow diamond | Container HAS-A (independent) | Room HAS-A Sofa |
+| **Composition** | Filled diamond | Strong HAS-A (dependent) | Chair HAS-A Seat |
+
+**Visual Overview:**
+```
+INHERITANCE (IS-A):
+    Child ──▶ Parent     (closed arrow)
+
+SIMPLE ASSOCIATION (HAS-A):
+    A ──▶ B              (open arrow)
+
+AGGREGATION (HAS-A, weak ownership):
+    Container ◇── Part   (hollow diamond)
+
+COMPOSITION (HAS-A, strong ownership):
+    Container ◆── Part   (filled diamond)
+```
+
+---
+
+### 4.8 Exercise Problem
+
+**Task:** Draw a class diagram for:
+- A `Car` class with 3-4 characteristics and 3-4 behaviors
+- `ManualCar` and `ElectricCar` as children
+- `ManualCar` has `shiftGear()` (specific)
+- `ElectricCar` has `chargeBattery()` (specific)
+- Decide: Inheritance or Composition?
+
+**Solution:**
+```
+┌─────────────────────────────┐
+│            Car              │
+├─────────────────────────────┤
+│ - brand: String             │
+│ - model: String             │
+│ - isEngineOn: boolean       │
+│ - currentSpeed: int         │
+├─────────────────────────────┤
+│ + startEngine(): void       │
+│ + stopEngine(): void        │
+│ + accelerate(): void        │
+│ + brake(): void             │
+└──────────┬──────────────────┘
+           △ (inheritance)
+     ┌─────┴─────┐
+     │           │
+┌────┴─────┐ ┌───┴────────┐
+│ManualCar │ │ElectricCar │
+├──────────┤ ├────────────┤
+│- currentG│ │- batteryPct│
+│  ear: int│ │  : int     │
+├──────────┤ ├────────────┤
+│+ shiftGea│ │+ chargeBat │
+│  r(): void│ │  tery():void│
+└──────────┘ └────────────┘
+```
+
+---
+
+### 4.9 Subjective Nature of Composition vs Aggregation
+
+**Important note from the lecture:** The line between Simple Association, Aggregation, and Composition is **subjective**. It depends on how you design the application.
+
+**Example — Zomato/Swiggy clone:**
+- Restaurant HAS-A Menu
+- **Question:** Does Menu exist independently of Restaurant?
+  - If **yes** → Aggregation (hollow diamond)
+  - If **no** → Composition (filled diamond)
+
+There's no single correct answer — it depends on your design choice.
+
+---
+
+## 5. Sequence Diagrams
+
+### 5.1 What is a Sequence Diagram?
+
+**Definition:** A **behavioral (dynamic)** diagram that shows how objects interact with each other over time — specifically, the sequence of messages exchanged between objects.
+
+**Purpose:** Shows the message flow for a **specific use case** (not the entire application).
+
+**Note:** One application can have thousands of sequence diagrams — one per use case/flow.
+
+---
+
+### 5.2 Components of a Sequence Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    SEQUENCE DIAGRAM COMPONENTS                       │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  1. OBJECTS (rectangles at top)                                     │
+│     ┌──────────┐  ┌──────────┐  ┌──────────┐                       │
+│     │  Object  │  │  Object  │  │  Object  │                       │
+│     │    A     │  │    B     │  │    C     │                       │
+│     └────┬─────┘  └────┬─────┘  └────┬─────┘                       │
+│          │             │             │                              │
+│  2. LIFELINE (dashed vertical line)                                 │
+│          │             │             │                              │
+│          │             │             │                              │
+│  3. ACTIVATION BAR (rectangle on lifeline)                          │
+│          ┃             ┃             ┃                              │
+│          ┃             ┃             ┃                              │
+│          ┃             ┃             ┃                              │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Detailed definitions:**
+
+| Component | Description |
+|-----------|-------------|
+| **Object** | Represented by a rectangle at the top. Simple name (no variables/methods shown). |
+| **Lifeline** | Dashed vertical line showing how long the object exists in the application. |
+| **Activation Bar** | Solid rectangle on the lifeline showing when the object is **active** (can send/receive messages). |
+| **Message** | Arrow between lifelines showing communication. |
+
+---
+
+### 5.3 Message Types
+
+#### Synchronous vs Asynchronous Messages
+
+```
+SYNCHRONOUS MESSAGE (waits for response):
+┌────────┐                    ┌────────┐
+│   A    │                    │   B    │
+└───┬────┘                    └───┬────┘
+    ┃                             ┃
+    ┃──── message() ─────────────▶┃   (solid closed arrow)
+    ┃                             ┃
+    ┃◀──── response ──────────────┃   (dashed line)
+    ┃                             ┃
+
+ASYNCHRONOUS MESSAGE (doesn't wait):
+┌────────┐                    ┌────────┐
+│   A    │                    │   B    │
+└───┬────┘                    └───┬────┘
+    ┃                             ┃
+    ┃──── message1() ────────────▶┃   (open arrow)
+    ┃──── message2() ────────────▶┃
+    ┃──── message3() ────────────▶┃
+    ┃                             ┃
+```
+
+| Message Type | Arrow Style | Waits for Response? |
+|-------------|-------------|---------------------|
+| **Synchronous** | Solid line, closed arrowhead | Yes — waits |
+| **Asynchronous** | Solid line, open arrowhead | No — fires and forgets |
+| **Response** | Dashed line | Return value from synchronous |
+
+---
+
+#### Create, Destroy, Lost, and Found Messages
+
+```
+CREATE MESSAGE:
+┌────────┐                    ┌────────┐
+│   A    │                    │   B    │
+└───┬────┘                    └───┬────┘
+    ┃                             │
+    ┃──── <<create>> ────────────▶┃  (new object created)
+    ┃                             ┃
+    
+DESTROY MESSAGE:
+┌────────┐                    ┌────────┐
+│   A    │                    │   B    │
+└───┬────┘                    └───┬────┘
+    ┃                             ┃
+    ┃──── <<destroy>> ───────────▶┃
+    ┃                             ✗  (lifeline ends)
+
+LOST MESSAGE:
+┌────────┐                    ┌────────┐
+│   A    │                    │   B    │
+└───┬────┘                    └───┬────┘
+    ┃                             │
+    ┃──── message() ────────────▶○  (goes into void)
+    ┃                             │
+    
+FOUND MESSAGE:
+┌────────┐                    ┌────────┐
+│   A    │                    │   B    │
+└───┬────┘                    └───┬────┘
+    ┃                             │
+    ○◀──── message() ─────────────┃  (from unknown source)
+    ┃                             │
+```
+
+| Message Type | Meaning |
+|-------------|---------|
+| **Create** | A new object is created |
+| **Destroy** | An existing object is destroyed (lifeline ends) |
+| **Lost** | Message sent but never reached the target |
+| **Found** | Message received from an unknown source |
+
+---
+
+### 5.4 How to Draw a Sequence Diagram — ATM Example
+
+**Step 1: Identify the Use Case (Flow)**
+A user goes to an ATM to withdraw cash:
+1. User inserts account number and amount
+2. ATM creates a transaction
+3. Transaction verifies sufficient funds
+4. Cash dispenser dispenses cash
+5. User receives cash
+
+**Step 2: Identify Objects Involved**
+- `User`
+- `ATM`
+- `Transaction`
+- `Account`
+- `CashDispenser`
+
+**Step 3: Draw the Sequence Diagram**
+
+```
+┌────────┐    ┌────────┐    ┌────────────┐    ┌─────────┐    ┌──────────────┐
+│  User  │    │  ATM   │    │Transaction │    │ Account │    │CashDispenser │
+└───┬────┘    └───┬────┘    └─────┬──────┘    └────┬────┘    └──────┬───────┘
+    ┃             ┃               │                │                │
+    ┃             ┃               │                │                │
+    ┃──withdraw(accountNo,amt)───▶┃               │                │
+    ┃             ┃               │                │                │
+    ┃             ┃──<<create>>──▶┃                │                │
+    ┃             ┃               ┃                │                │
+    ┃             ┃               ┃──checkAmount(amt)──▶┃           │
+    ┃             ┃               ┃                ┃   │            │
+    ┃             ┃               ┃◀────true────────┃  │            │
+    ┃             ┃               ┃                │                │
+    ┃             ┃◀────true──────┃                │                │
+    ┃             ┃               ✗                │                │
+    ┃             ┃               │                │                │
+    ┃             ┃──withdrawCash(amt)─────────────────────────────▶┃
+    ┃             ┃               │                │                ┃
+    ┃             ┃◀────cash──────────────────────────────────────┃
+    ┃             ┃               │                │                ✗
+    ┃◀───cash─────┃               │                │                │
+    ✗             ✗               │                │                │
+
+Legend:
+  ━━▶  = synchronous message (waits for response)
+  ◀╌╌  = response (dashed line)
+  ✗    = object destroyed / lifeline ends
+```
+
+**Step-by-step message flow:**
+
+| Step | From | To | Message | Type |
+|------|------|----|---------|------|
+| 1 | User | ATM | `withdraw(accountNo, amount)` | Synchronous |
+| 2 | ATM | Transaction | `<<create>>` | Create |
+| 3 | Transaction | Account | `checkAmount(amount)` | Synchronous |
+| 4 | Account | Transaction | `true` (sufficient funds) | Response |
+| 5 | Transaction | ATM | `true` | Response |
+| 6 | ATM | CashDispenser | `withdrawCash(amount)` | Synchronous |
+| 7 | CashDispenser | ATM | `cash` | Response |
+| 8 | ATM | User | `cash` | Response |
+
+**Key observations:**
+- **User** and **ATM** are active from start to end
+- **Transaction** is created mid-flow and destroyed after use
+- **Account** and **CashDispenser** are activated only when needed
+- The transaction object gets destroyed after returning true (its work is done)
+
+---
+
+### 5.5 Additional Sequence Diagram Terms
+
+| Term | Meaning | Example |
+|------|---------|---------|
+| **alt** | If-else block (alternate flows) | If balance is sufficient → dispense; else → show error |
+| **opt** | Only-if block (no else) | If PIN is correct → proceed |
+| **loop** | Iteration (for/while loop) | Retry PIN up to 3 times |
+
+**Visual:**
+```
+alt (sufficient funds)              opt (PIN correct)              loop (3 times)
+┌─────────────────────┐            ┌──────────────────┐           ┌──────────────────┐
+│   withdraw cash     │            │   proceed        │           │  enter PIN       │
+├─────────────────────┤            └──────────────────┘           └──────────────────┘
+│   [else]            │
+│   show error        │
+└─────────────────────┘
+```
+
+**Note:** Happy flow diagrams (no alt/opt/loop) are most common in interviews.
+
+---
+
+## 6. Complete Overview Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           UML DIAGRAMS                                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌────────────────────────────┐    ┌────────────────────────────┐           │
+│  │     STRUCTURAL (Static)    │    │    BEHAVIORAL (Dynamic)    │           │
+│  ├────────────────────────────┤    ├────────────────────────────┤           │
+│  │                            │    │                            │           │
+│  │  ⭐ CLASS DIAGRAM           │    │  ⭐ SEQUENCE DIAGRAM        │           │
+│  │                            │    │                            │           │
+│  │  • Class Name              │    │  • Objects                 │           │
+│  │  • Variables (Attributes)  │    │  • Lifelines               │           │
+│  │  • Methods (Behaviors)     │    │  • Activation Bars         │           │
+│  │  • Access Modifiers        │    │  • Messages:               │           │
+│  │  • Abstract marker         │    │    - Synchronous           │           │
+│  │                            │    │    - Asynchronous          │           │
+│  │  ASSOCIATIONS:             │    │    - Create / Destroy      │           │
+│  │  • Inheritance (IS-A)      │    │    - Lost / Found          │           │
+│  │  • Simple Association      │    │  • alt / opt / loop        │           │
+│  │  • Aggregation             │    │                            │           │
+│  │  • Composition             │    │                            │           │
+│  │                            │    │                            │           │
+│  └────────────────────────────┘    └────────────────────────────┘           │
+│                                                                              │
+│  Both are essential for LLD interviews and real-world design                │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 7. Key Takeaways
+
+| Concept | Key Point |
+|---------|-----------|
+| **UML Diagram** | Visual representation of application design (classes, interactions) |
+| **Class Diagram** | Shows classes, their members, and associations (static structure) |
+| **Sequence Diagram** | Shows message flow between objects for a specific use case (dynamic behavior) |
+| **Inheritance** | IS-A relationship; closed arrow |
+| **Simple Association** | HAS-A (weak); open arrow |
+| **Aggregation** | HAS-A (container, independent parts); hollow diamond |
+| **Composition** | HAS-A (strong, dependent parts); filled diamond |
+| **Composition in Code** | Same as any HAS-A: store reference/object of another class |
+| **Synchronous Message** | Waits for response; closed arrow + dashed response |
+| **Asynchronous Message** | No wait; open arrow |
+| **Create/Destroy** | Object lifecycle messages |
+| **Lost/Found** | Message delivery failures / unknown sources |
+
+---
+
+## 8. Exercise
+
+**Draw a class diagram for a Car hierarchy:**
+- `Car` (parent): brand, model, isEngineOn, currentSpeed + startEngine(), stopEngine(), accelerate(), brake()
+- `ManualCar` (child): currentGear + shiftGear()
+- `ElectricCar` (child): batteryPercentage + chargeBattery()
+
+**Decide:** Inheritance or Composition relationship?
+
+**Answer:** Inheritance (IS-A) — because ManualCar IS-A Car, ElectricCar IS-A Car.
+
+**Practice drawing both Class Diagram and Sequence Diagram for a use case of your choice.**
+
+---
+
+## 05. SOLID Design Principles | Complete Guide with Code Examples (1:07:31)
 
 summaries system design tutorial transcript in details along with useful code examples and diagrams
