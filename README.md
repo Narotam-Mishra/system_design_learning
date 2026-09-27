@@ -2966,4 +2966,787 @@ alt (sufficient funds)              opt (PIN correct)              loop (3 times
 
 ## 05. SOLID Design Principles | Complete Guide with Code Examples (1:07:31)
 
+This lecture introduces **SOLID Design Principles** — five rules created by **Robert C. Martin (Uncle Bob)** in 2000 to solve common problems in real-world projects. Part 1 covers the first three: **SRP, OCP, and LSP**.
+
+---
+
+## 0. Why SOLID? — Problems Without Design Principles
+
+### Real-World Analogy: A Messy House Wiring
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    A HOUSE WITH MESSY WIRING                        │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   Electrical wires ──┐                                               │
+│   Internet wires   ──┼──▶ ALL from ONE point ──▶ TOTAL MESS         │
+│   Water pipes      ──┘                                               │
+│                                                                      │
+│   If ONE wire fails:                                                │
+│   • Hard to find which wire is faulty                               │
+│   • Hard to replace the correct wire                                │
+│   • Everything is TIGHTLY COUPLED                                   │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+Same problem in code when classes are **tightly coupled** and **messy**.
+
+### Common Problems Without Design Principles
+
+| Problem | Description |
+|---------|-------------|
+| **Maintainability** | New features can't be easily integrated; old features break |
+| **Readability** | New engineers can't understand the code quickly |
+| **Bugs & Debugging** | Many bugs introduced, hard to debug and resolve |
+| **Monetary Impact** | Bugs in production cost real money |
+
+---
+
+## 1. SOLID Acronym Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    SOLID DESIGN PRINCIPLES                          │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   S ── Single Responsibility Principle (SRP)                        │
+│        "A class should have only one reason to change"              │
+│                                                                      │
+│   O ── Open/Closed Principle (OCP)                                  │
+│        "Open for extension, closed for modification"                │
+│                                                                      │
+│   L ── Liskov Substitution Principle (LSP)                          │
+│        "Subclasses should be substitutable for base classes"        │
+│                                                                      │
+│   I ── Interface Segregation Principle (ISP)                        │
+│        (Covered in Part 2)                                          │
+│                                                                      │
+│   D ── Dependency Inversion Principle (DIP)                         │
+│        (Covered in Part 2)                                          │
+│                                                                      │
+│   Created by: Robert C. Martin (Uncle Bob), 2000                    │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 2. Single Responsibility Principle (SRP)
+
+### Definition
+
+> **"A class should have only one reason to change."**
+> **"A class should do only one thing."**
+
+**Important clarification:** SRP does NOT mean a class should have only one method. It means all methods of a class should serve **one responsibility**.
+
+### Real-World Analogy: TV Remote
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    TV REMOTE ANALOGY                                │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   GOOD:                             BAD:                            │
+│   ┌─────────────────┐              ┌─────────────────────────┐     │
+│   │  TV Remote      │              │  Universal Remote       │     │
+│   │  • Power        │              │  • Power TV             │     │
+│   │  • Volume       │              │  • Volume TV            │     │
+│   │  • Channel      │              │  • Channel TV           │     │
+│   └─────────────────┘              │  • Control Fridge       │     │
+│                                    │  • Control AC           │     │
+│   One responsibility:              │  • Control Washing M/C  │     │
+│   "Control the TV"                 └─────────────────────────┘     │
+│                                                                      │
+│                                    Too many responsibilities!       │
+│                                    Hard to maintain                 │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Example: Shopping Cart
+
+**❌ BAD — Violates SRP:**
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    ShoppingCart (SRP VIOLATION)                     │
+├─────────────────────────────────────────────────────────────────────┤
+│  - products: List<Product>                                          │
+├─────────────────────────────────────────────────────────────────────┤
+│  + addProduct(Product): void                                        │
+│  + getProducts(): List<Product>                                     │
+│  + calculateTotalPrice(): double      ← Responsibility 1            │
+│  + printInvoice(): void               ← Responsibility 2            │
+│  + saveToDatabase(): void             ← Responsibility 3            │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Problems:**
+- 3 reasons to change: pricing logic, invoice format, DB persistence
+- Change in DB → must modify `ShoppingCart`
+- Change in invoice format → must modify `ShoppingCart`
+
+**❌ Bad Code:**
+
+```cpp
+class Product {
+    string name;
+    double price;
+public:
+    Product(string n, double p) : name(n), price(p) {}
+    string getName() { return name; }
+    double getPrice() { return price; }
+};
+
+class ShoppingCart {
+    vector<Product> products;
+public:
+    void addProduct(Product p) { products.push_back(p); }
+    vector<Product> getProducts() { return products; }
+    
+    double calculateTotalPrice() {
+        double total = 0;
+        for (auto& p : products) total += p.getPrice();
+        return total;
+    }
+    
+    void printInvoice() {
+        cout << "Invoice:\n";
+        for (auto& p : products)
+            cout << p.getName() << " - $" << p.getPrice() << "\n";
+        cout << "Total: $" << calculateTotalPrice() << "\n";
+    }
+    
+    void saveToDatabase() {
+        cout << "Saving shopping cart to database...\n";
+    }
+};
+
+int main() {
+    ShoppingCart cart;
+    cart.addProduct(Product("Laptop", 1500));
+    cart.addProduct(Product("Mouse", 50));
+    cart.printInvoice();
+    cart.saveToDatabase();
+}
+```
+
+**✅ GOOD — Follows SRP:**
+
+```
+┌────────────────────────┐
+│       Product          │
+├────────────────────────┤
+│ - name: String         │
+│ - price: double        │
+├────────────────────────┤
+│ + getName(): String    │
+│ + getPrice(): double   │
+└────────────────────────┘
+           △ (has-a)
+           │ 1..*
+┌──────────┴─────────────┐
+│     ShoppingCart       │
+├────────────────────────┤
+│ - products: List<...>  │
+├────────────────────────┤
+│ + addProduct()         │
+│ + getProducts()        │
+│ + calculateTotalPrice()│ ← Only ONE responsibility
+└────────────────────────┘
+
+┌────────────────────────┐    ┌────────────────────────┐
+│ ShoppingCartInvoice    │    │ ShoppingCartStorage    │
+│       Printer          │    │                        │
+├────────────────────────┤    ├────────────────────────┤
+│ - cart: ShoppingCart*  │    │ - cart: ShoppingCart*  │
+├────────────────────────┤    ├────────────────────────┤
+│ + printInvoice()       │    │ + saveToDB()           │
+└────────────────────────┘    └────────────────────────┘
+        │                              │
+        └──────────────┬───────────────┘
+                       │ (has-a)
+                       ▼
+                ShoppingCart
+```
+
+**✅ Good Code:**
+
+```cpp
+class Product {
+    string name;
+    double price;
+public:
+    Product(string n, double p) : name(n), price(p) {}
+    string getName() { return name; }
+    double getPrice() { return price; }
+};
+
+// Responsibility 1: Cart management + Price calculation
+class ShoppingCart {
+    vector<Product> products;
+public:
+    void addProduct(Product p) { products.push_back(p); }
+    vector<Product> getProducts() { return products; }
+    
+    double calculateTotalPrice() {
+        double total = 0;
+        for (auto& p : products) total += p.getPrice();
+        return total;
+    }
+};
+
+// Responsibility 2: Invoice printing
+class ShoppingCartInvoicePrinter {
+    ShoppingCart* cart;
+public:
+    ShoppingCartInvoicePrinter(ShoppingCart* c) : cart(c) {}
+    
+    void printInvoice() {
+        cout << "Invoice:\n";
+        for (auto& p : cart->getProducts())
+            cout << p.getName() << " - $" << p.getPrice() << "\n";
+        cout << "Total: $" << cart->calculateTotalPrice() << "\n";
+    }
+};
+
+// Responsibility 3: Database persistence
+class ShoppingCartStorage {
+    ShoppingCart* cart;
+public:
+    ShoppingCartStorage(ShoppingCart* c) : cart(c) {}
+    
+    void saveToDatabase() {
+        cout << "Saving shopping cart to database...\n";
+    }
+};
+
+int main() {
+    ShoppingCart cart;
+    cart.addProduct(Product("Laptop", 1500));
+    cart.addProduct(Product("Mouse", 50));
+    
+    ShoppingCartInvoicePrinter printer(&cart);
+    printer.printInvoice();
+    
+    ShoppingCartStorage storage(&cart);
+    storage.saveToDatabase();
+}
+```
+
+**Benefits:**
+- Change DB logic → only modify `ShoppingCartStorage`
+- Change invoice format → only modify `ShoppingCartInvoicePrinter`
+- Change pricing logic → only modify `ShoppingCart`
+
+---
+
+## 3. Open/Closed Principle (OCP)
+
+### Definition
+
+> **"A class should be open for extension but closed for modification."**
+
+- **Extension** = Adding new features
+- **Modification** = Changing existing code
+- **Rule:** Add new features **without touching existing classes** (use abstraction + inheritance + polymorphism)
+
+### Problem Setup
+
+**Scenario:** Initially, `ShoppingCartStorage` only saves to SQL. Now you want to add MongoDB and File storage.
+
+**❌ BAD — Violates OCP (Adding methods to existing class):**
+
+```cpp
+class ShoppingCartStorage {
+    ShoppingCart* cart;
+public:
+    ShoppingCartStorage(ShoppingCart* c) : cart(c) {}
+    
+    void saveToSqlDB() { /* SQL logic */ }
+    void saveToMongoDB() { /* Mongo logic */ }  // ❌ Modified class
+    void saveToFile() { /* File logic */ }       // ❌ Modified class
+};
+```
+
+**Why it's bad:** Every new storage type requires modifying the existing `ShoppingCartStorage` class.
+
+### ✅ Good — Using Abstraction + Inheritance + Polymorphism
+
+```
+                  ┌────────────────────────────┐
+                  │    <<abstract>>            │
+                  │   DBPersistence            │
+                  ├────────────────────────────┤
+                  │ - cart: ShoppingCart*      │
+                  ├────────────────────────────┤
+                  │ + save(): void = 0         │
+                  └─────────────┬──────────────┘
+                                △ (inheritance)
+              ┌─────────────────┼─────────────────┐
+              │                 │                 │
+     ┌────────┴────────┐ ┌──────┴────────┐ ┌──────┴────────┐
+     │ SqlPersistence  │ │ MongoPersist. │ │ FilePersist.  │
+     ├─────────────────┤ ├───────────────┤ ├───────────────┤
+     │ + save()        │ │ + save()      │ │ + save()      │
+     └─────────────────┘ └───────────────┘ └───────────────┘
+        (override)        (override)         (override)
+```
+
+**✅ Good Code:**
+
+```cpp
+class Product { /* same as before */ };
+
+class ShoppingCart {
+    vector<Product> products;
+public:
+    void addProduct(Product p) { products.push_back(p); }
+    vector<Product> getProducts() { return products; }
+    double calculateTotalPrice() { /* ... */ }
+};
+
+class ShoppingCartInvoicePrinter { /* same as before */ };
+
+// ABSTRACT CLASS - The extension point
+class DBPersistence {
+protected:
+    ShoppingCart* cart;
+public:
+    DBPersistence(ShoppingCart* c) : cart(c) {}
+    virtual void save() = 0;  // Pure virtual
+    virtual ~DBPersistence() {}
+};
+
+// Concrete implementations - each new one is a NEW class (not modification)
+class SqlPersistence : public DBPersistence {
+public:
+    SqlPersistence(ShoppingCart* c) : DBPersistence(c) {}
+    
+    void save() override {
+        cout << "Saving shopping cart to SQL database...\n";
+    }
+};
+
+class MongoPersistence : public DBPersistence {
+public:
+    MongoPersistence(ShoppingCart* c) : DBPersistence(c) {}
+    
+    void save() override {
+        cout << "Saving shopping cart to MongoDB...\n";
+    }
+};
+
+class FilePersistence : public DBPersistence {
+public:
+    FilePersistence(ShoppingCart* c) : DBPersistence(c) {}
+    
+    void save() override {
+        cout << "Saving shopping cart to File...\n";
+    }
+};
+
+int main() {
+    ShoppingCart cart;
+    cart.addProduct(Product("Laptop", 1500));
+    cart.addProduct(Product("Mouse", 50));
+    
+    ShoppingCartInvoicePrinter printer(&cart);
+    printer.printInvoice();
+    
+    // Polymorphism in action — same save() call, different behavior
+    DBPersistence* sql = new SqlPersistence(&cart);
+    DBPersistence* mongo = new MongoPersistence(&cart);
+    DBPersistence* file = new FilePersistence(&cart);
+    
+    sql->save();    // SQL behavior
+    mongo->save();  // MongoDB behavior
+    file->save();   // File behavior
+}
+```
+
+**Output:**
+```
+Invoice:
+Laptop - $1500
+Mouse - $50
+Total: $1550
+Saving shopping cart to SQL database...
+Saving shopping cart to MongoDB...
+Saving shopping cart to File...
+```
+
+**Key Insight:** Adding a new persistence type (e.g., Cassandra) requires only a new class — **no existing class is modified**.
+
+---
+
+## 4. Liskov Substitution Principle (LSP)
+
+### Definition
+
+> **"Subclasses should be substitutable for their base classes."**
+
+**In practice:** Wherever a base class object can be used, a subclass object should work without breaking the code.
+
+### Why It's Important (and Often Violated)
+
+Despite being a "basic" inheritance property, LSP is one of the most commonly violated principles in real-world projects — often unintentionally.
+
+### The Rule Illustrated
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    LSP IN A NUTSHELL                                │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   Base Class A                       Subclass B                     │
+│   ┌─────────────────┐               ┌─────────────────┐             │
+│   │ + m1()          │               │ + m1()          │ (inherited) │
+│   │ + m2()          │  ◀── inherits │ + m2()          │ (inherited) │
+│   │ + m3()          │               │ + m3()          │ (inherited) │
+│   └─────────────────┘               │ + m4()          │ (own)       │
+│                                     │ + m5()          │ (own)       │
+│   Client expects A                  └─────────────────┘             │
+│   ────▶ Pass B instead                                              │
+│   ────▶ Should STILL work — B extends A, doesn't restrict it        │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Client Code Pattern
+
+```cpp
+class A {
+public:
+    void m1() { /* ... */ }
+    void m2() { /* ... */ }
+    void m3() { /* ... */ }
+};
+
+class B : public A {
+public:
+    void m4() { /* ... */ }  // Specialized
+    void m5() { /* ... */ }
+};
+
+// Client expects A
+void randomMethod(A* a) {
+    a->m1();
+    a->m2();
+    a->m3();
+}
+
+int main() {
+    A* a = new A();
+    randomMethod(a);           // ✅ Works
+    
+    A* b = new B();            // ✅ Substitution
+    randomMethod(b);           // ✅ Should work — B has m1, m2, m3
+}
+```
+
+The client only knows about `m1()`, `m2()`, `m3()` — it doesn't know (or care) about `m4()`, `m5()`.
+
+### ❌ Violation Example: Bank Accounts
+
+**Scenario:** Bank account hierarchy with Fixed Deposit accounts.
+
+```
+┌────────────────────────────────────┐
+│       <<abstract>>                 │
+│        Account                     │
+├────────────────────────────────────┤
+│ + deposit(): void = 0              │
+│ + withdraw(): void = 0             │
+└─────────────────┬──────────────────┘
+                  △
+      ┌───────────┼────────────┐
+      │           │            │
+┌─────┴─────┐ ┌───┴──────┐ ┌───┴───────────┐
+│ Savings   │ │ Current  │ │ FixedDeposit  │
+├───────────┤ ├──────────┤ ├───────────────┤
+│ + deposit │ │ + deposit│ │ + deposit     │
+│ + withdraw│ │ + withdraw│ │ + withdraw ❌ │
+└───────────┘ └──────────┘ │  (throws!)    │
+                           └───────────────┘
+```
+
+**Why this violates LSP:** The client expects to call `withdraw()` on any `Account`, but `FixedDepositAccount::withdraw()` throws an exception.
+
+**❌ Bad Code:**
+
+```cpp
+class Account {
+public:
+    virtual void deposit(double amount) = 0;
+    virtual void withdraw(double amount) = 0;
+    virtual ~Account() {}
+};
+
+class SavingsAccount : public Account {
+    double balance = 0;
+public:
+    void deposit(double amount) override {
+        balance += amount;
+        cout << "Deposited: " << amount << "\n";
+    }
+    void withdraw(double amount) override {
+        if (amount <= balance) {
+            balance -= amount;
+            cout << "Withdrawn: " << amount << "\n";
+        } else {
+            cout << "Insufficient funds\n";
+        }
+    }
+};
+
+class CurrentAccount : public Account {
+    // Similar to SavingsAccount
+};
+
+class FixedDepositAccount : public Account {
+public:
+    void deposit(double amount) override {
+        cout << "Deposited: " << amount << "\n";
+    }
+    void withdraw(double amount) override {
+        throw logic_error("Withdrawal not allowed in Fixed Deposit Account");
+    }
+};
+
+class BankClient {
+    vector<Account*> accounts;
+public:
+    BankClient(vector<Account*> accs) : accounts(accs) {}
+    
+    void processTransactions() {
+        for (auto* acc : accounts) {
+            acc->deposit(1000);
+            acc->withdraw(500);  // ❌ Throws for FixedDeposit
+        }
+    }
+};
+
+int main() {
+    vector<Account*> accounts = {
+        new SavingsAccount(),
+        new CurrentAccount(),
+        new FixedDepositAccount()
+    };
+    BankClient client(accounts);
+    client.processTransactions();  // Exception thrown!
+}
+```
+
+### ❌ Wrong "Fix": Modify the Client
+
+```cpp
+void processTransactions() {
+    for (auto* acc : accounts) {
+        acc->deposit(1000);
+        
+        // ❌ BAD: Type checking — client is now tightly coupled
+        if (typeid(*acc) != typeid(FixedDepositAccount)) {
+            acc->withdraw(500);
+        }
+    }
+}
+```
+
+**Why it's bad:**
+- Client becomes **tightly coupled** to account types
+- **Breaks OCP** — every new account type requires client modification
+- Client shouldn't know about implementation details
+
+### ✅ Correct Fix: Restructure Hierarchy
+
+```
+       ┌────────────────────────────────┐
+       │     <<abstract>>               │
+       │  DepositOnlyAccount            │
+       ├────────────────────────────────┤
+       │ + deposit(): void = 0          │
+       └───────────────┬────────────────┘
+                       △
+                       │ (extends)
+       ┌───────────────┴────────────────┐
+       │     <<abstract>>               │
+       │  WithdrawableAccount           │
+       ├────────────────────────────────┤
+       │ + withdraw(): void = 0         │
+       └───────────────┬────────────────┘
+                       △
+              ┌────────┼─────────┐
+              │                  │
+       ┌──────┴──────┐    ┌──────┴──────┐
+       │  Savings    │    │  Current    │
+       └─────────────┘    └─────────────┘
+
+       ┌─────────────────────────────┐
+       │  FixedDepositAccount        │
+       │  (extends DepositOnly)      │
+       └─────────────────────────────┘
+```
+
+**✅ Good Code:**
+
+```cpp
+// Interface 1: Deposit only
+class DepositOnlyAccount {
+public:
+    virtual void deposit(double amount) = 0;
+    virtual ~DepositOnlyAccount() {}
+};
+
+// Interface 2: Deposit + Withdraw
+class WithdrawableAccount : public DepositOnlyAccount {
+public:
+    virtual void withdraw(double amount) = 0;
+    virtual ~WithdrawableAccount() {}
+};
+
+class SavingsAccount : public WithdrawableAccount {
+    double balance = 0;
+public:
+    void deposit(double amount) override {
+        balance += amount;
+        cout << "Savings: Deposited " << amount << "\n";
+    }
+    void withdraw(double amount) override {
+        if (amount <= balance) {
+            balance -= amount;
+            cout << "Savings: Withdrawn " << amount << "\n";
+        } else {
+            cout << "Savings: Insufficient funds\n";
+        }
+    }
+};
+
+class CurrentAccount : public WithdrawableAccount {
+    // Same as Savings
+};
+
+class FixedDepositAccount : public DepositOnlyAccount {
+public:
+    void deposit(double amount) override {
+        cout << "FixedDeposit: Deposited " << amount << "\n";
+    }
+    // No withdraw() method — it doesn't exist in parent
+};
+
+// Client with two separate lists — no type checking!
+class BankClient {
+    vector<WithdrawableAccount*> withdrawableAccounts;
+    vector<DepositOnlyAccount*> depositOnlyAccounts;
+public:
+    BankClient(vector<WithdrawableAccount*> w, vector<DepositOnlyAccount*> d)
+        : withdrawableAccounts(w), depositOnlyAccounts(d) {}
+    
+    void processTransactions() {
+        // Withdrawable accounts: deposit + withdraw
+        for (auto* acc : withdrawableAccounts) {
+            acc->deposit(1000);
+            acc->withdraw(500);
+        }
+        
+        // Deposit-only accounts: deposit only
+        for (auto* acc : depositOnlyAccounts) {
+            acc->deposit(1000);
+        }
+    }
+};
+
+int main() {
+    vector<WithdrawableAccount*> w = {
+        new SavingsAccount(),
+        new CurrentAccount()
+    };
+    vector<DepositOnlyAccount*> d = {
+        new FixedDepositAccount()
+    };
+    
+    BankClient client(w, d);
+    client.processTransactions();
+}
+```
+
+**Output:**
+```
+Savings: Deposited 1000
+Savings: Withdrawn 500
+Current: Deposited 1000
+Current: Withdrawn 500
+FixedDeposit: Deposited 1000
+```
+
+**Key Insight:** By splitting the interface into two levels, each subclass now correctly supports all methods of its parent. Client doesn't need any type checks.
+
+---
+
+## 5. Complete SOLID Overview Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       SOLID DESIGN PRINCIPLES                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   ┌────────────────────────────────────────────────────────────────────┐    │
+│   │  S — SINGLE RESPONSIBILITY PRINCIPLE                               │    │
+│   │  ────────────────────────────────────                              │    │
+│   │  • One class = One responsibility                                  │    │
+│   │  • One reason to change                                            │    │
+│   │  • Split ShoppingCart → Cart + Printer + Storage                   │    │
+│   └────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+│   ┌────────────────────────────────────────────────────────────────────┐    │
+│   │  O — OPEN/CLOSED PRINCIPLE                                         │    │
+│   │  ───────────────────────────                                       │    │
+│   │  • Open for extension                                              │    │
+│   │  • Closed for modification                                         │    │
+│   │  • Use abstraction + inheritance + polymorphism                    │    │
+│   │  • New persistence types → new classes, no modifications           │    │
+│   └────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+│   ┌────────────────────────────────────────────────────────────────────┐    │
+│   │  L — LISKOV SUBSTITUTION PRINCIPLE                                 │    │
+│   │  ────────────────────────────────                                  │    │
+│   │  • Subclass must be substitutable for base class                   │    │
+│   │  • Extend, never restrict parent's contract                        │    │
+│   │  • FixedDepositAccount → DepositOnlyAccount (not Account)          │    │
+│   └────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+│   ┌────────────────────────────────────────────────────────────────────┐    │
+│   │  I — INTERFACE SEGREGATION PRINCIPLE                               │    │
+│   │  D — DEPENDENCY INVERSION PRINCIPLE                                │    │
+│   │  (Covered in Part 2)                                               │    │
+│   └────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 6. Key Takeaways
+
+| Principle | Core Idea | Key Technique | Warning Sign |
+|-----------|-----------|---------------|--------------|
+| **SRP** | One class = one responsibility | Split into multiple classes; use composition | A class has "and" in its responsibility description |
+| **OCP** | Extend without modifying | Abstraction + inheritance + polymorphism | Adding a feature requires editing existing classes |
+| **LSP** | Subclass substitutes base | Restructure hierarchy; don't narrow parent's contract | Child throws exceptions/returns null for parent's methods |
+
+### Golden Rules
+1. **SRP:** "A class should have only one reason to change."
+2. **OCP:** "A class should be open for extension, closed for modification."
+3. **LSP:** "A subclass must be substitutable for its base class."
+
+### Common Pitfall: Solving One Principle by Breaking Another
+In the LSP bank example, the "wrong fix" (adding type checks in client) violated **OCP** — this is a key lesson: always check that a fix doesn't break other principles.
+
+---
+
+## 06. SOLID Design Principles | part 2 (1:17:10)
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
