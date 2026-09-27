@@ -14,6 +14,19 @@
 *.bak
 *.orig
 
+# Compiled C/C++ artifacts
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+*.app/
+lec-5_solid_design_principles_p1/01_srp_violated
+
 # Python environments and caches (for future examples/scripts)
 .venv/
 venv/
