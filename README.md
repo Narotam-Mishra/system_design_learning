@@ -3749,4 +3749,5 @@ In the LSP bank example, the "wrong fix" (adding type checks in client) violated
 
 ## 06. SOLID Design Principles | part 2 (1:17:10)
 
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
