@@ -3749,4 +3749,1111 @@ In the LSP bank example, the "wrong fix" (adding type checks in client) violated
 
 ## 06. SOLID Design Principles | part 2 (1:17:10)
 
+This lecture completes the SOLID principles. It deep-dives into **LSP guidelines** (signature, property, and method rules), then covers **Interface Segregation Principle (ISP)** and **Dependency Inversion Principle (DIP)**.
+
+---
+
+## 1. LSP Guidelines (Deep Dive)
+
+### Recap: LSP Definition
+
+> **"Subclasses should be substitutable for their base classes."**
+
+A child class must **behave like** the parent class — not just inherit its methods. The client should not notice any difference between parent and child.
+
+### Why Guidelines Are Needed
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    LSP IS EASY TO BREAK                             │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   Inheritance is NOT enough.                                        │
+│   Just overriding parent methods ≠ LSP compliance.                  │
+│                                                                      │
+│   Example: FixedDepositAccount overrides withdraw() but throws     │
+│   exception → breaks LSP even though it "inherits" from Account    │
+│                                                                      │
+│   Key Rule: Child class must BEHAVE like parent class.             │
+│   Client should NOT know parent vs child difference.                │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Three Categories of LSP Guidelines
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    LSP GUIDELINES                                   │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   1. SIGNATURE RULE                                                │
+│      ├── Method Argument Rule                                       │
+│      ├── Return Type Rule (Covariance)                              │
+│      └── Exception Rule                                             │
+│                                                                      │
+│   2. PROPERTY RULE                                                 │
+│      ├── Class Invariant                                            │
+│      └── History Constraint                                         │
+│                                                                      │
+│   3. METHOD RULE                                                   │
+│      ├── Pre-condition                                              │
+│      └── Post-condition                                             │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Terminology: Broad vs Narrow
+
+| Term | Meaning | Example |
+|------|---------|---------|
+| **Broad** | Parent class or any ancestor | Animal is broader than Dog |
+| **Narrow** | Child class or any descendant | Dog is narrower than Animal |
+
+---
+
+## 2. Signature Rule
+
+### 2.1 Method Argument Rule
+
+**Rule:** The method argument in the child class must be **the same** or **broader** than the parent class's argument.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                 METHOD ARGUMENT RULE                                │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   Parent:  void solve(String s)                                     │
+│                                                                      │
+│   Child:   void solve(String s)     ✅ Same (allowed)               │
+│            void solve(Object o)     ✅ Broader (allowed)            │
+│            void solve(Integer i)    ❌ Narrower (NOT allowed)       │
+│                                                                      │
+│   Why? Client knows parent's contract: expects String.              │
+│   If child expects Integer, client passing String will break.       │
+│                                                                      │
+│   Note: C++ enforces this automatically. Java also enforces this.   │
+│         You cannot break this rule even if you wanted to.           │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Code Example:**
+
+```cpp
+class Parent {
+public:
+    virtual void print(string msg) {
+        cout << "Parent: " << msg << "\n";
+    }
+};
+
+class Child : public Parent {
+public:
+    // ✅ Correct: same argument type
+    void print(string msg) override {
+        cout << "Child: " << msg << "\n";
+    }
+    
+    // ❌ Compile error: different argument type
+    // void print(int msg) override { ... }
+    // Error: does not override base class member
+};
+
+// Client
+void processMessage(Parent* p) {
+    p->print("Hello");  // Works for both Parent and Child
+}
+
+int main() {
+    Parent p;
+    Child c;
+    processMessage(&p);  // ✅ Parent
+    processMessage(&c);  // ✅ Child (substituted)
+}
+```
+
+---
+
+### 2.2 Return Type Rule (Covariance)
+
+**Rule:** The return type in the child class must be **the same** or **narrower** than the parent class's return type. It must **never** be broader.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    RETURN TYPE RULE                                 │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   Hierarchy:    Animal (broader) ◀── Dog (narrower)                 │
+│                                                                      │
+│   Parent:  Animal getAnimal()                                       │
+│                                                                      │
+│   Child:   Animal getAnimal()  ✅ Same (allowed)                    │
+│            Dog getAnimal()     ✅ Narrower (allowed — Covariance)   │
+│            Organism getAnimal() ❌ Broader (NOT allowed)            │
+│                                                                      │
+│   Why? Client expects Animal reference.                             │
+│   If child returns Organism, client can't hold it in Animal ref.    │
+│                                                                      │
+│   This is called COVARIANCE.                                        │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Code Example:**
+
+```cpp
+class Animal {
+public:
+    virtual void speak() { cout << "Animal speaks\n"; }
+};
+
+class Dog : public Animal {
+public:
+    void speak() override { cout << "Dog barks\n"; }
+};
+
+class Parent {
+public:
+    virtual Animal* getAnimal() {
+        cout << "Parent returning Animal instance\n";
+        return new Animal();
+    }
+};
+
+class Child : public Parent {
+public:
+    // ✅ Allowed: narrower return type (Dog is narrower than Animal)
+    Dog* getAnimal() override {
+        cout << "Child returning Dog instance\n";
+        return new Dog();
+    }
+    
+    // ❌ NOT allowed: broader return type
+    // Organism* getAnimal() override { ... }
+};
+
+// Client
+class Client {
+    Parent* p;
+public:
+    Client(Parent* parent) : p(parent) {}
+    
+    Animal* takeAnimal() {
+        return p->getAnimal();  // Works for Parent or Child
+    }
+};
+
+int main() {
+    Parent p;
+    Child c;
+    
+    Client c1(&p);
+    c1.takeAnimal();  // Output: Parent returning Animal instance
+    
+    Client c2(&c);
+    c2.takeAnimal();  // Output: Child returning Dog instance
+}
+```
+
+---
+
+### 2.3 Exception Rule
+
+**Rule:** If the parent method throws an exception of type `E`, the child method must throw **the same exception** or a **narrower (subclass)** exception. Never a broader one.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    EXCEPTION HIERARCHY                              │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│                        Exception                                    │
+│                       /         \                                   │
+│               LogicError       RuntimeError                         │
+│              /    |    \       /    |    \                          │
+│         OutOfRange  ...  ...  ...  ...  ...                         │
+│                                                                      │
+│   Child can throw: OutOfRangeError (narrower) ✅                    │
+│   Child can throw: LogicError (same) ✅                             │
+│   Child cannot throw: RuntimeError (different/broader) ❌            │
+│   Child cannot throw: Exception (broader) ❌                        │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Why?** The client has a `try-catch` block that only handles the parent's exception type. If the child throws something different, the client's catch block won't catch it.
+
+**Code Example:**
+
+```cpp
+#include <iostream>
+#include <stdexcept>
+using namespace std;
+
+class Parent {
+public:
+    // Contract: throws LogicError (or subclass)
+    virtual int getValue() {
+        throw LogicError("Parent logical error");
+    }
+};
+
+class Child : public Parent {
+public:
+    // ✅ Allowed: narrower exception (OutOfRange is subclass of LogicError)
+    int getValue() override {
+        throw OutOfRange("Child out of range error");
+    }
+    
+    // ❌ NOT allowed: different/broader exception
+    // int getValue() override {
+    //     throw RuntimeError("Child runtime error");  // Different class!
+    // }
+};
+
+// Client
+class Client {
+    Parent* p;
+public:
+    Client(Parent* parent) : p(parent) {}
+    
+    void takeValue() {
+        try {
+            p->getValue();
+        } catch (LogicError& e) {  // Client expects LogicError
+            cout << "Logic error handled: " << e.what() << "\n";
+        }
+    }
+};
+
+int main() {
+    Child c;
+    Client client(&c);
+    client.takeValue();  // ✅ OutOfRange caught by LogicError handler
+}
+```
+
+---
+
+## 3. Property Rule
+
+### 3.1 Class Invariant
+
+**Definition:** An **invariant** is a rule/fact that must **always be true** for a class throughout its lifetime.
+
+**Rule:** The child class must **follow** the parent's invariant — either keep it as-is or **strengthen** it, but **never weaken** it.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    CLASS INVARIANT RULE                             │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   Parent Class: Account                                             │
+│   Invariant:  "Balance can never be negative"                      │
+│                                                                      │
+│   ✅ Child follows:                                                 │
+│      • SavingsAccount — maintains non-negative balance             │
+│      • CurrentAccount — maintains non-negative balance             │
+│                                                                      │
+│   ❌ Child violates:                                                │
+│      • CheatAccount — allows negative balance                      │
+│        → Breaks invariant → breaks LSP                              │
+│                                                                      │
+│   Note: Invariants are written as comments — C++ doesn't           │
+│         enforce them. It's YOUR responsibility to follow.          │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Code Example:**
+
+```cpp
+class BankAccount {
+protected:
+    double balance;
+    
+    // INVARIANT: balance must never be negative
+    // (This is a documented rule — not enforced by compiler)
+    
+public:
+    BankAccount(double b) {
+        if (b < 0) {
+            throw invalid_argument("Balance can't be negative");
+        }
+        balance = b;
+    }
+    
+    virtual void withdraw(double amount) {
+        if (balance - amount < 0) {
+            throw runtime_error("Insufficient funds");
+        }
+        balance -= amount;
+        cout << "Withdrawn: " << amount << "\n";
+    }
+};
+
+// ✅ Follows invariant
+class SavingsAccount : public BankAccount {
+public:
+    SavingsAccount(double b) : BankAccount(b) {}
+    // withdraw() inherited — maintains non-negative balance
+};
+
+// ❌ Violates invariant
+class CheatAccount : public BankAccount {
+public:
+    CheatAccount(double b) : BankAccount(b) {}
+    
+    void withdraw(double amount) override {
+        // BUG: No check for negative balance!
+        balance -= amount;  // Can go negative → breaks invariant
+        cout << "Withdrawn: " << amount << "\n";
+    }
+};
+```
+
+---
+
+### 3.2 History Constraint
+
+**Definition:** A **history constraint** is a rule about the object's behavior over time — that certain operations should **always be allowed** (or never allowed).
+
+**Rule:** The child class must **not change the history** set by the parent. If parent says "withdrawal is always allowed," child cannot disable it.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    HISTORY CONSTRAINT RULE                          │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   Parent Class: Account                                             │
+│   History Constraint: "Withdrawal should always be allowed"         │
+│                                                                      │
+│   ✅ Child follows:                                                 │
+│      • SavingsAccount — withdraw() works                            │
+│      • CurrentAccount — withdraw() works                            │
+│                                                                      │
+│   ❌ Child violates:                                                │
+│      • FixedDepositAccount — withdraw() throws exception            │
+│        → Breaks history constraint → breaks LSP                     │
+│                                                                      │
+│   Also: Immutable classes/methods must stay immutable in child.    │
+│   If parent marks something final/immutable, child must not        │
+│   make it mutable.                                                  │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Code Example:**
+
+```cpp
+class BankAccount {
+protected:
+    double balance;
+    
+    // HISTORY CONSTRAINT: "Withdrawal should be allowed"
+    // This means any BankAccount subclass MUST support withdraw()
+    
+public:
+    BankAccount(double b) : balance(b) {}
+    
+    virtual void withdraw(double amount) {
+        if (amount <= balance) {
+            balance -= amount;
+            cout << "Withdrawn: " << amount << "\n";
+        } else {
+            cout << "Insufficient funds\n";
+        }
+    }
+};
+
+// ✅ Follows history constraint
+class SavingsAccount : public BankAccount {
+public:
+    SavingsAccount(double b) : BankAccount(b) {}
+    // withdraw() works — as expected
+};
+
+// ❌ Violates history constraint
+class FixedDepositAccount : public BankAccount {
+public:
+    FixedDepositAccount(double b) : BankAccount(b) {}
+    
+    void withdraw(double amount) override {
+        // BREAKS history constraint — withdrawal is no longer allowed
+        throw runtime_error("Withdrawal not allowed in Fixed Deposit");
+    }
+};
+
+int main() {
+    BankAccount* acc = new FixedDepositAccount(1000);
+    // Client expects withdrawal to work (based on parent contract)
+    acc->withdraw(500);  // ❌ Throws exception — client breaks!
+}
+```
+
+**Bonus: Immutable Classes and Methods**
+
+```cpp
+// Immutable class — cannot be inherited
+class FinalClass final {
+    // ...
+};
+
+class Parent {
+public:
+    // Immutable method — cannot be overridden
+    virtual void doSomething() final {
+        cout << "This cannot be overridden\n";
+    }
+};
+
+class Child : public Parent {
+    // ❌ Compile error: cannot override final method
+    // void doSomething() override { ... }
+};
+```
+
+---
+
+## 4. Method Rule
+
+### 4.1 Pre-condition
+
+**Definition:** A **pre-condition** is a condition that must be **true before** a method runs.
+
+**Rule:** The child class may **weaken** (relax) the pre-condition or keep it **as-is**, but must **never strengthen** (tighten) it.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    PRE-CONDITION RULE                               │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   Parent: createPassword()                                          │
+│   Pre-condition: password.length() >= 8                             │
+│                                                                      │
+│   Child:                                                            │
+│   ✅ Weakens:  password.length() >= 6  (more permissive)            │
+│   ✅ Same:     password.length() >= 8                               │
+│   ❌ Strengthens: password.length() >= 10 (more restrictive)        │
+│                                                                      │
+│   Why? Client expects to pass any value satisfying parent's        │
+│   pre-condition. If child tightens it, valid inputs for parent     │
+│   become invalid for child → breaks LSP.                            │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Code Example:**
+
+```cpp
+class User {
+public:
+    // PRE-CONDITION: password must be at least 8 characters
+    virtual void setPassword(string password) {
+        if (password.length() < 8) {
+            throw invalid_argument("Password must be at least 8 characters");
+        }
+        cout << "Password set: " << password << "\n";
+    }
+};
+
+// ✅ Child weakens pre-condition (allows shorter passwords)
+class AdminUser : public User {
+public:
+    // PRE-CONDITION (weakened): password must be at least 6 characters
+    void setPassword(string password) override {
+        if (password.length() < 6) {
+            throw invalid_argument("Password must be at least 6 characters");
+        }
+        cout << "Admin password set: " << password << "\n";
+    }
+};
+
+// Client
+void createUserPassword(User* user) {
+    // Client follows parent contract: uses 8-char password
+    user->setPassword("password123");  // 11 chars — fine for both
+}
+
+int main() {
+    User u;
+    AdminUser a;
+    createUserPassword(&u);  // ✅ Works
+    createUserPassword(&a);  // ✅ Works (weakened pre-condition)
+}
+```
+
+---
+
+### 4.2 Post-condition
+
+**Definition:** A **post-condition** is a condition that must be **true after** a method runs.
+
+**Rule:** The child class may **strengthen** the post-condition or keep it **as-is**, but must **never weaken** it.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    POST-CONDITION RULE                              │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   Parent: brake()                                                   │
+│   Post-condition: "Speed must decrease after brake"                 │
+│                                                                      │
+│   Child (ElectricCar):                                              │
+│   ✅ Strengthens: "Speed decreases AND battery increases"           │
+│   ✅ Same: "Speed decreases"                                       │
+│   ❌ Weakens: "Speed stays same" (never allowed)                    │
+│                                                                      │
+│   Why? Client expects speed to decrease after calling brake.       │
+│   If child doesn't decrease speed, client's expectation breaks.    │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Code Example:**
+
+```cpp
+class Car {
+protected:
+    int speed = 0;
+public:
+    virtual void accelerate() {
+        speed += 20;
+        cout << "Accelerating to " << speed << " km/h\n";
+    }
+    
+    // POST-CONDITION: speed must decrease after brake
+    virtual void brake() {
+        speed = max(0, speed - 20);
+        cout << "Braking. Speed: " << speed << " km/h\n";
+    }
+};
+
+// ✅ Child strengthens post-condition
+class HybridCar : public Car {
+private:
+    int charge = 0;
+public:
+    // POST-CONDITION (strengthened): speed decreases AND charge increases
+    void brake() override {
+        speed = max(0, speed - 20);
+        charge += 10;
+        cout << "Braking (regenerative). Speed: " << speed
+             << " km/h, Charge: " << charge << "%\n";
+    }
+};
+
+// ❌ Child weakens post-condition (DO NOT DO THIS)
+class BrokenCar : public Car {
+public:
+    void brake() override {
+        // Speed doesn't decrease — violates post-condition!
+        cout << "Braking... but speed stays " << speed << " km/h\n";
+    }
+};
+
+int main() {
+    Car c;
+    c.accelerate();  // 20
+    c.brake();       // 0
+    
+    HybridCar h;
+    h.accelerate();  // 20
+    h.brake();       // 0, charge +10 — valid (strengthened)
+    
+    BrokenCar b;
+    b.accelerate();  // 20
+    b.brake();       // Speed still 20 — BROKEN!
+}
+```
+
+---
+
+## 5. LSP Guidelines Summary
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    LSP GUIDELINES SUMMARY                           │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   ┌─────────────────────────────────────────────────────────────┐   │
+│   │  SIGNATURE RULE                                             │   │
+│   │  ├── Method Argument: same or broader                       │   │
+│   │  ├── Return Type: same or narrower (Covariance)             │   │
+│   │  └── Exception: same or narrower                            │   │
+│   └─────────────────────────────────────────────────────────────┘   │
+│                                                                      │
+│   ┌─────────────────────────────────────────────────────────────┐   │
+│   │  PROPERTY RULE                                              │   │
+│   │  ├── Class Invariant: maintain or strengthen (never weaken) │   │
+│   │  └── History Constraint: never change history               │   │
+│   └─────────────────────────────────────────────────────────────┘   │
+│                                                                      │
+│   ┌─────────────────────────────────────────────────────────────┐   │
+│   │  METHOD RULE                                                │   │
+│   │  ├── Pre-condition: same or weaker (never strengthen)       │   │
+│   │  └── Post-condition: same or stronger (never weaken)        │   │
+│   └─────────────────────────────────────────────────────────────┘   │
+│                                                                      │
+│   How to spot LSP violation in code:                                │
+│   • Child throws exception for parent's method                      │
+│   • Child leaves parent's method empty                              │
+│   • Child hardcodes a value                                         │
+│   • Child narrows parent's contract                                 │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 6. Interface Segregation Principle (ISP)
+
+### Definition
+
+> **"Many client-specific interfaces are better than one general-purpose interface."**
+> **"Clients should not be forced to implement methods they don't need."**
+
+### Problem Setup
+
+**Scenario:** A `Shape` interface with `area()` and `volume()` methods.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    ISP VIOLATION                                    │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│                    <<abstract>>                                     │
+│                      Shape                                          │
+│                    ┌──────────────┐                                 │
+│                    │ + area()     │                                 │
+│                    │ + volume()   │  ← Problem: 2D shapes          │
+│                    └──────┬───────┘    don't have volume!           │
+│                           △                                          │
+│           ┌───────────────┼───────────────┐                         │
+│           │               │               │                         │
+│      ┌────┴────┐    ┌─────┴─────┐   ┌─────┴─────┐                  │
+│      │ Square  │    │ Rectangle │   │   Cube    │                  │
+│      ├─────────┤    ├───────────┤   ├───────────┤                  │
+│      │ + area()│    │ + area()  │   │ + area()  │                  │
+│      │ + volume│    │ + volume  │   │ + volume()│                  │
+│      │  (throws)│   │  (throws) │   │           │                  │
+│      └─────────┘    └───────────┘   └───────────┘                  │
+│                                                                      │
+│   Square & Rectangle are FORCED to implement volume() even though   │
+│   they don't need it. → ISP VIOLATION                               │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### ✅ Solution: Segregate Interfaces
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    ISP SOLUTION                                     │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│            <<abstract>>          <<abstract>>                       │
+│             TwoDShape             ThreeDShape                       │
+│           ┌──────────┐           ┌──────────────┐                   │
+│           │ + area() │           │ + area()     │                   │
+│           └────┬─────┘           │ + volume()   │                   │
+│                △                 └──────┬───────┘                   │
+│        ┌───────┼───────┐                △                            │
+│        │               │                │                            │
+│   ┌────┴────┐   ┌──────┴──────┐   ┌─────┴─────┐                    │
+│   │ Square  │   │ Rectangle   │   │   Cube    │                    │
+│   ├─────────┤   ├─────────────┤   ├───────────┤                    │
+│   │ + area()│   │ + area()    │   │ + area()  │                    │
+│   └─────────┘   └─────────────┘   │ + volume()│                    │
+│                                    └───────────┘                    │
+│                                                                      │
+│   Square & Rectangle only implement area() — no unnecessary volume() │
+│   Cube implements both area() and volume()                          │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Code Example
+
+**❌ Bad (ISP Violated):**
+
+```cpp
+class Shape {
+public:
+    virtual double area() = 0;
+    virtual double volume() = 0;  // Problem: not all shapes have volume
+    virtual ~Shape() {}
+};
+
+class Square : public Shape {
+    double side;
+public:
+    Square(double s) : side(s) {}
+    
+    double area() override { return side * side; }
+    
+    double volume() override {
+        throw logic_error("Volume not applicable for 2D shape");
+    }
+};
+
+class Rectangle : public Shape {
+    double length, width;
+public:
+    Rectangle(double l, double w) : length(l), width(w) {}
+    
+    double area() override { return length * width; }
+    
+    double volume() override {
+        throw logic_error("Volume not applicable for 2D shape");
+    }
+};
+
+class Cube : public Shape {
+    double side;
+public:
+    Cube(double s) : side(s) {}
+    
+    double area() override { return 6 * side * side; }
+    double volume() override { return side * side * side; }
+};
+```
+
+**✅ Good (ISP Followed):**
+
+```cpp
+// Interface 1: 2D shapes
+class TwoDShape {
+public:
+    virtual double area() = 0;
+    virtual ~TwoDShape() {}
+};
+
+// Interface 2: 3D shapes (extends 2D)
+class ThreeDShape : public TwoDShape {
+public:
+    virtual double volume() = 0;
+    virtual ~ThreeDShape() {}
+};
+
+class Square : public TwoDShape {
+    double side;
+public:
+    Square(double s) : side(s) {}
+    double area() override { return side * side; }
+    // No volume() — not needed!
+};
+
+class Rectangle : public TwoDShape {
+    double length, width;
+public:
+    Rectangle(double l, double w) : length(l), width(w) {}
+    double area() override { return length * width; }
+    // No volume() — not needed!
+};
+
+class Cube : public ThreeDShape {
+    double side;
+public:
+    Cube(double s) : side(s) {}
+    double area() override { return 6 * side * side; }
+    double volume() override { return side * side * side; }
+};
+```
+
+---
+
+## 7. Dependency Inversion Principle (DIP)
+
+### Definition
+
+> **"High-level modules should not depend on low-level modules. Both should depend on abstractions."**
+> **"Abstractions should not depend on details. Details should depend on abstractions."**
+
+### Terminology
+
+| Module Type | Description | Example |
+|-------------|-------------|---------|
+| **High-level module** | Business logic | Application, UserService |
+| **Low-level module** | System interaction | Database, File system, External API |
+
+### Problem Setup
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    DIP VIOLATION                                    │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   ┌─────────────────────┐                                           │
+│   │   Application       │  (HIGH-LEVEL MODULE)                      │
+│   │   (Business Logic)  │                                           │
+│   └──────┬──────────────┘                                           │
+│          │                                                           │
+│          │ Direct dependency (TIGHTLY COUPLED)                       │
+│          │                                                           │
+│   ┌──────┴──────┐    ┌──────────────┐                               │
+│   │  MySQL      │    │  MongoDB     │  (LOW-LEVEL MODULES)          │
+│   │  Database   │    │  Database    │                               │
+│   └─────────────┘    └──────────────┘                               │
+│                                                                      │
+│   Problem: Application has direct references to both databases      │
+│   To add Cassandra, must modify Application → breaks OCP            │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### ✅ Solution: Introduce Abstraction
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    DIP SOLUTION                                     │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   ┌─────────────────────┐                                           │
+│   │   Application       │  (HIGH-LEVEL MODULE)                      │
+│   │                     │                                           │
+│   │   - db: Database*   │───────┐                                  │
+│   └─────────────────────┘       │                                  │
+│                                 │ (depends on abstraction)          │
+│                                 ▼                                  │
+│                    ┌────────────────────────┐                       │
+│                    │  <<abstract>>          │                       │
+│                    │  Database              │                       │
+│                    ├────────────────────────┤                       │
+│                    │ + save(): void = 0     │                       │
+│                    └───────────┬────────────┘                       │
+│                                △                                    │
+│                    ┌───────────┼───────────┐                        │
+│                    │           │           │                        │
+│              ┌─────┴─────┐ ┌───┴─────┐ ┌───┴──────┐                 │
+│              │ MySQL DB  │ │ MongoDB │ │ Cassandra│                 │
+│              │ (details) │ │(details)│ │ (details)│                 │
+│              └───────────┘ └─────────┘ └──────────┘                 │
+│                                                                      │
+│   Now Application depends on Database abstraction, not concrete     │
+│   databases. Adding new DB = new class, no Application change.      │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Code Example
+
+**❌ Bad (DIP Violated):**
+
+```cpp
+class MySQLDatabase {
+public:
+    void saveToSQL(string data) {
+        cout << "Saving to MySQL: " << data << "\n";
+    }
+};
+
+class MongoDBDatabase {
+public:
+    void saveToMongo(string data) {
+        cout << "Saving to MongoDB: " << data << "\n";
+    }
+};
+
+class UserService {
+    MySQLDatabase* sqlDB;
+    MongoDBDatabase* mongoDB;
+public:
+    UserService() {
+        sqlDB = new MySQLDatabase();
+        mongoDB = new MongoDBDatabase();
+    }
+    
+    void storeUserToSQL(string user) {
+        sqlDB->saveToSQL(user);
+    }
+    
+    void storeUserToMongo(string user) {
+        mongoDB->saveToMongo(user);
+    }
+    
+    // Adding Cassandra → must modify UserService → breaks OCP
+};
+```
+
+**✅ Good (DIP Followed):**
+
+```cpp
+// Abstraction
+class Database {
+public:
+    virtual void save(string data) = 0;
+    virtual ~Database() {}
+};
+
+// Low-level modules
+class MySQLDatabase : public Database {
+public:
+    void save(string data) override {
+        cout << "Saving to MySQL: " << data << "\n";
+    }
+};
+
+class MongoDBDatabase : public Database {
+public:
+    void save(string data) override {
+        cout << "Saving to MongoDB: " << data << "\n";
+    }
+};
+
+class CassandraDatabase : public Database {
+public:
+    void save(string data) override {
+        cout << "Saving to Cassandra: " << data << "\n";
+    }
+};
+
+// High-level module (depends only on abstraction)
+class UserService {
+    Database* db;  // Dependency injection
+public:
+    UserService(Database* database) : db(database) {}
+    
+    void storeUser(string user) {
+        db->save(user);  // Polymorphism — works for any DB
+    }
+};
+
+int main() {
+    // Runtime decides which DB to use
+    UserService sqlService(new MySQLDatabase());
+    sqlService.storeUser("Alice");     // Output: Saving to MySQL: Alice
+    
+    UserService mongoService(new MongoDBDatabase());
+    mongoService.storeUser("Bob");     // Output: Saving to MongoDB: Bob
+    
+    UserService cassandraService(new CassandraDatabase());
+    cassandraService.storeUser("Carol");  // Output: Saving to Cassandra: Carol
+}
+```
+
+### Real-Life Analogy: CEO and Developers
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    DIP IN A COMPANY                                 │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   CEO (High-level) ──▶ Manager (Abstraction) ◀── Developers         │
+│                                                        (Low-level)  │
+│                                                                      │
+│   • CEO doesn't talk directly to developers                         │
+│   • CEO talks to Manager (interface/abstraction)                    │
+│   • Developers talk to Manager, not CEO                             │
+│   • If developers change, CEO doesn't need to know                  │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Key Quote from the Lecture
+
+> **"If Open/Closed Principle is the target, then Dependency Inversion Principle is the solution."**
+
+---
+
+## 8. SOLID Principles — Complete Summary
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       SOLID DESIGN PRINCIPLES                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   ┌────────────────────────────────────────────────────────────────────┐    │
+│   │  S — SINGLE RESPONSIBILITY PRINCIPLE (SRP)                         │    │
+│   │  • A class should have only one reason to change                   │    │
+│   │  • One class = One responsibility                                  │    │
+│   │  • Split ShoppingCart → Cart + Printer + Storage                   │    │
+│   └────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+│   ┌────────────────────────────────────────────────────────────────────┐    │
+│   │  O — OPEN/CLOSED PRINCIPLE (OCP)                                   │    │
+│   │  • Open for extension, closed for modification                     │    │
+│   │  • Use abstraction + inheritance + polymorphism                    │    │
+│   │  • New persistence types → new classes, no modifications           │    │
+│   └────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+│   ┌────────────────────────────────────────────────────────────────────┐    │
+│   │  L — LISKOV SUBSTITUTION PRINCIPLE (LSP)                           │    │
+│   │  • Subclass must be substitutable for base class                   │    │
+│   │  • Guidelines:                                                     │    │
+│   │    - Signature Rule (args, return, exceptions)                     │    │
+│   │    - Property Rule (invariant, history constraint)                 │    │
+│   │    - Method Rule (pre-condition, post-condition)                   │    │
+│   └────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+│   ┌────────────────────────────────────────────────────────────────────┐    │
+│   │  I — INTERFACE SEGREGATION PRINCIPLE (ISP)                         │    │
+│   │  • Many client-specific interfaces > one general-purpose interface │    │
+│   │  • Don't force clients to implement unused methods                 │    │
+│   │  • Split Shape → TwoDShape + ThreeDShape                           │    │
+│   └────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+│   ┌────────────────────────────────────────────────────────────────────┐    │
+│   │  D — DEPENDENCY INVERSION PRINCIPLE (DIP)                          │    │
+│   │  • High-level and low-level modules depend on abstractions         │    │
+│   │  • Use dependency injection + polymorphism                         │    │
+│   │  • Application → Database abstraction → MySQL/Mongo/Cassandra      │    │
+│   └────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+│   Created by: Robert C. Martin (Uncle Bob), 2000                            │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 9. The Trade-off Reality
+
+The lecture ends with a crucial point: **SOLID principles are ideals, not laws.**
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    SOLID IS A TRADE-OFF                             │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   • Following ALL principles perfectly is nearly impossible        │
+│   • Business logic sometimes requires breaking a principle          │
+│   • Just like DSA has time-space trade-offs, LLD has              │
+│     SOLID vs business-logic trade-offs                              │
+│                                                                      │
+│   "At the end of the day, business logic is the main thing.        │
+│    That's what brings money to the application."                    │
+│                                                                      │
+│   Goal: Try to follow SOLID as much as possible.                   │
+│   It will make your code cleaner, more maintainable, and more      │
+│   scalable — but perfection isn't always practical.                 │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 10. Key Takeaways
+
+| Principle | Core Idea | Key Rule |
+|-----------|-----------|----------|
+| **LSP — Signature** | Method signature must match | Args same/broader; return same/narrower; exception same/narrower |
+| **LSP — Property** | Class-level rules preserved | Invariant: maintain/strengthen; History: never change |
+| **LSP — Method** | Method contracts preserved | Pre-condition: same/weaker; Post-condition: same/stronger |
+| **ISP** | Don't force unused methods | Split interfaces by client needs |
+| **DIP** | Depend on abstractions | High + low level both depend on interfaces |
+
+**How to Spot LSP Violations:**
+- Child throws exception for parent's method
+- Child leaves parent's method empty
+- Child hardcodes a value
+- Child narrows parent's contract
+
+**DIP in One Line:**
+> "If OCP is the target, DIP is the solution."
+
+---
+
+## 07. Build Google Docs | A Real-World LLD Project (45:19)
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
