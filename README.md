@@ -4856,4 +4856,540 @@ The lecture ends with a crucial point: **SOLID principles are ideals, not laws.*
 
 ## 07. Build Google Docs | A Real-World LLD Project (45:19)
 
+This lecture applies **all OOP pillars** and **SOLID principles** to a real LLD problem: designing a **Document Editor** (like Google Docs). The instructor walks through three designs — Bad → Better → Final — showing the interview approach.
+
+---
+
+## 1. Problem Statement
+
+**Design a Document Editor** that:
+- Supports **text** and **images** (initially)
+- Must be **scalable** — later support tables, videos, fonts, newlines, tabs, spaces
+- Should allow users to add elements, render the document, and save it
+
+### Two Approaches to Any LLD Problem
+
+| Approach | Description | When to Use |
+|----------|-------------|-------------|
+| **Top-Down** | Design topmost object first, then dependencies | Some specific problems |
+| **Bottom-Up** | Design small objects first, then compose larger ones | ✅ Most common in LLD interviews |
+
+> The instructor prefers **Bottom-Up** for this problem.
+
+---
+
+## 2. Bad Design (Violates SRP & OCP)
+
+### The Single-Class Approach
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     DocumentEditor                          │
+├─────────────────────────────────────────────────────────────┤
+│ - documentElements: vector<string>                          │
+│ - renderedDocument: string                                  │
+├─────────────────────────────────────────────────────────────┤
+│ + addText(string): void                                     │
+│ + addImage(string path): void                               │
+│ + renderDocument(): string                                  │
+│ + saveToFile(): void                                        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Bad Code
+
+```cpp
+class DocumentEditor {
+    vector<string> documentElements;
+    string renderedDocument;
+    
+public:
+    void addText(string text) {
+        documentElements.push_back(text);
+    }
+    
+    void addImage(string imagePath) {
+        documentElements.push_back(imagePath);
+    }
+    
+    string renderDocument() {
+        if (renderedDocument.empty()) {
+            string result;
+            for (auto element : documentElements) {
+                // Hacky way to detect images
+                if (element.size() > 4 &&
+                    (element.substr(element.size() - 4) == ".jpg" ||
+                     element.substr(element.size() - 4) == ".png")) {
+                    result += "[Image: " + element + "]\n";
+                } else {
+                    result += element + "\n";
+                }
+            }
+            renderedDocument = result;
+        }
+        return renderedDocument;
+    }
+    
+    void saveToFile() {
+        ofstream file("document.txt");
+        if (file.is_open()) {
+            file << renderDocument();
+            file.close();
+            cout << "Document saved to file.\n";
+        } else {
+            cout << "Unable to open file.\n";
+        }
+    }
+};
+
+int main() {
+    DocumentEditor editor;
+    editor.addText("Hello, World!");
+    editor.addImage("picture.jpg");
+    editor.addText("This is a document editor.");
+    
+    cout << editor.renderDocument() << endl;
+    editor.saveToFile();
+}
+```
+
+### Problems with Bad Design
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  PROBLEMS WITH BAD DESIGN                   │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ❌ SRP VIOLATION                                           │
+│     • Handles text, images, rendering, AND file saving      │
+│     • Multiple reasons to change                            │
+│                                                             │
+│  ❌ OCP VIOLATION                                           │
+│     • Adding new element (video, table) requires            │
+│       modifying DocumentEditor class                        │
+│                                                             │
+│  ❌ No abstraction / No polymorphism                        │
+│     • Everything stored as string (hacky image detection)   │
+│     • Can't scale to new element types                      │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 3. Better Design (Applying SRP & OCP)
+
+### Step 1: Extract DocumentElement Hierarchy
+
+```
+                    ┌──────────────────────────┐
+                    │   <<abstract>>           │
+                    │   DocumentElement        │
+                    ├──────────────────────────┤
+                    │ + render(): string = 0   │
+                    └────────────┬─────────────┘
+                                 △
+              ┌──────────────────┼──────────────────┐
+              │                  │                  │
+     ┌────────┴────────┐ ┌───────┴────────┐ ┌───────┴────────┐
+     │  TextElement    │ │  ImageElement  │ │ NewLineElement │
+     ├─────────────────┤ ├────────────────┤ ├────────────────┤
+     │ - text: string  │ │ - imagePath    │ │ + render()     │
+     │ + render()      │ │ + render()     │ └────────────────┘
+     └─────────────────┘ └────────────────┘
+```
+
+```cpp
+// ABSTRACT CLASS — The extension point
+class DocumentElement {
+public:
+    virtual string render() = 0;
+    virtual ~DocumentElement() {}
+};
+
+class TextElement : public DocumentElement {
+    string text;
+public:
+    TextElement(string t) : text(t) {}
+    string render() override { return text; }
+};
+
+class ImageElement : public DocumentElement {
+    string imagePath;
+public:
+    ImageElement(string path) : imagePath(path) {}
+    string render() override {
+        return "[Image: " + imagePath + "]";
+    }
+};
+
+// NEW — Added without touching existing classes (OCP!)
+class NewLineElement : public DocumentElement {
+public:
+    string render() override { return "\n"; }
+};
+
+class TabSpaceElement : public DocumentElement {
+public:
+    string render() override { return "\t"; }
+};
+```
+
+### Step 2: Extract Document Class (CRUD Operations)
+
+```cpp
+class Document {
+    vector<DocumentElement*> documentElements;
+public:
+    void addElement(DocumentElement* element) {
+        documentElements.push_back(element);
+    }
+    
+    // Needed for the renderer to access elements
+    vector<DocumentElement*> getElements() {
+        return documentElements;
+    }
+};
+```
+
+### Step 3: Extract Persistence Hierarchy
+
+```
+                    ┌──────────────────────────┐
+                    │   <<abstract>>           │
+                    │   Persistence            │
+                    ├──────────────────────────┤
+                    │ + save(string): void = 0 │
+                    └────────────┬─────────────┘
+                                 △
+                    ┌────────────┴─────────────┐
+                    │                          │
+           ┌────────┴────────┐        ┌────────┴────────┐
+           │  FileStorage    │        │   DBStorage     │
+           ├─────────────────┤        ├─────────────────┤
+           │ + save(string)  │        │ + save(string)  │
+           └─────────────────┘        └─────────────────┘
+```
+
+```cpp
+class Persistence {
+public:
+    virtual void save(string data) = 0;
+    virtual ~Persistence() {}
+};
+
+class FileStorage : public Persistence {
+public:
+    void save(string data) override {
+        ofstream file("document.txt");
+        if (file.is_open()) {
+            file << data;
+            file.close();
+            cout << "Document saved to file.\n";
+        }
+    }
+};
+
+class DBStorage : public Persistence {
+public:
+    void save(string data) override {
+        // SQL/MongoDB connection logic here
+        cout << "Document saved to DB.\n";
+    }
+};
+```
+
+### Step 4: DocumentEditor Delegates Everything
+
+```cpp
+class DocumentEditor {
+    Document* document;
+    Persistence* storage;
+    string renderedDocument;
+    
+public:
+    DocumentEditor(Document* doc, Persistence* store)
+        : document(doc), storage(store) {}
+    
+    void addText(string text) {
+        // Delegates to Document
+        document->addElement(new TextElement(text));
+    }
+    
+    void addImage(string imagePath) {
+        document->addElement(new ImageElement(imagePath));
+    }
+    
+    string renderDocument() {
+        if (renderedDocument.empty()) {
+            string result;
+            for (auto element : document->getElements()) {
+                result += element->render() + "\n";
+            }
+            renderedDocument = result;
+        }
+        return renderedDocument;
+    }
+    
+    void saveDocument() {
+        // Delegates to Persistence
+        storage->save(renderDocument());
+    }
+};
+```
+
+### Diagram of Better Design
+
+```
+                          ┌──────────────────┐
+                          │  DocumentEditor  │
+                          ├──────────────────┤
+                          │ - document       │
+                          │ - storage        │
+                          ├──────────────────┤
+                          │ + addText()      │
+                          │ + addImage()     │
+                          │ + renderDoc()    │
+                          │ + saveDoc()      │
+                          └────────┬─────────┘
+                                   │
+                    ┌──────────────┴───────────────┐
+                    │ (has-a)                       │ (has-a)
+                    ▼                               ▼
+            ┌──────────────┐              ┌────────────────┐
+            │  Document    │              │  Persistence   │
+            ├──────────────┤              │  <<abstract>>  │
+            │ + addElement │              ├────────────────┤
+            │ + getElements│              │ + save() = 0   │
+            └───────┬──────┘              └───────┬────────┘
+                    │                              △
+                    │ (has-a)                      │
+                    ▼                              │
+            ┌──────────────┐              ┌────────┴────────┐
+            │DocumentElement│             │                 │
+            │  <<abstract>>│      ┌──────┴──────┐  ┌───────┴─────┐
+            ├──────────────┤      │FileStorage  │  │  DBStorage  │
+            │ + render()=0 │      ├─────────────┤  ├─────────────┤
+            └───────┬──────┘      │ + save()    │  │  + save()   │
+                    △             └─────────────┘  └─────────────┘
+                    │
+      ┌─────────────┼─────────────┬──────────────┐
+      │             │             │              │
+┌─────┴────┐ ┌─────┴────┐ ┌──────┴───┐ ┌────────┴─────┐
+│TextElem  │ │ImageElem │ │NewLine   │ │TabSpace      │
+└──────────┘ └──────────┘ └──────────┘ └──────────────┘
+```
+
+---
+
+## 4. SOLID Compliance Checklist
+
+| Principle | How It's Followed |
+|-----------|-------------------|
+| **S**RP | Each class has one job: `Document` (holds elements), `DocumentElement` (renders itself), `Persistence` (saves), `DocumentEditor` (delegates) |
+| **O**CP | New element types = new subclasses (no modification) |
+| **L**SP | All `DocumentElement` subclasses (`TextElement`, `ImageElement`) are substitutable |
+| **I**SP | `DocumentElement` interface only has `render()`; `Persistence` only has `save()` — no unused methods |
+| **D**IP | `DocumentEditor` depends on abstractions (`Document`, `Persistence`) not on concrete classes |
+
+---
+
+## 5. Final Design (Fixing Remaining Issues)
+
+### The Counter-Question: Principle of Least Knowledge (Law of Demeter)
+
+> **"You should only talk to your immediate friends."**
+
+The **Better Design** still has an issue: `DocumentEditor.renderDocument()` fetches elements from `Document` and then calls `element->render()`. This is **talking to friends of friends** (DocumentEditor → Document → DocumentElement) → increases **coupling**.
+
+### Fix: Extract DocumentRenderer
+
+```
+┌────────────────┐
+│DocumentRenderer│
+├────────────────┤
+│ - document     │
+├────────────────┤
+│ + render()     │
+└────────────────┘
+```
+
+```cpp
+class DocumentRenderer {
+    Document* document;
+public:
+    DocumentRenderer(Document* doc) : document(doc) {}
+    
+    string render() {
+        string result;
+        // Talks to Document (immediate friend), which returns elements
+        for (auto element : document->getElements()) {
+            result += element->render() + "\n";
+        }
+        return result;
+    }
+};
+```
+
+### Final Architecture
+
+```
+                    ┌──────────────────┐
+                    │     Client       │
+                    │   (main code)    │
+                    └────────┬─────────┘
+                             │ (uses all 4)
+              ┌──────────────┼──────────────┬──────────────┐
+              ▼              ▼              ▼              ▼
+      ┌────────────┐ ┌──────────────┐ ┌────────────┐ ┌───────────┐
+      │Document    │ │DocumentEditor│ │Document    │ │Persistence│
+      │            │ │              │ │Renderer    │ │<<abstract>>│
+      ├────────────┤ ├──────────────┤ ├────────────┤ ├───────────┤
+      │+ addElement│ │+ addText     │ │ + render() │ │ + save()=0│
+      │+ getElements│ │+ addImage    │ └──────┬─────┘ └─────┬─────┘
+      └─────┬──────┘ └──────┬───────┘        │             │
+            │               │ (has-a)         │             │
+            │(has-a)        ▼                 │             │
+            │      ┌──────────────┐           │             │
+            │      │ Document     │◀──────────┘             │
+            │      └──────┬───────┘                         │
+            │             │                                  │
+            │             │(has-a)                           │
+            │             ▼                                  │
+            │      ┌──────────────────┐         ┌───────────┴────────┐
+            │      │ DocumentElement  │         │                    │
+            │      │  <<abstract>>    │    ┌────┴──────┐  ┌──────────┴─┐
+            │      ├──────────────────┤    │FileStorage│  │ DBStorage  │
+            │      │ + render()=0     │    └───────────┘  └────────────┘
+            │      └────────┬─────────┘
+            │               △
+            │  ┌────────────┼───────────┬────────────┐
+            │  │            │           │            │
+            │  ▼            ▼           ▼            ▼
+            │┌────────┐ ┌────────┐ ┌─────────┐ ┌──────────┐
+            ││TextElem│ │ImgElem │ │NewLine  │ │TabSpace  │
+            │└────────┘ └────────┘ └─────────┘ └──────────┘
+            │
+            └────(elements stored here)
+```
+
+### Final Client Code
+
+```cpp
+int main() {
+    // 1. Create element hierarchy
+    Document* document = new Document();
+    
+    // 2. Create editor (only for editing)
+    DocumentEditor* editor = new DocumentEditor(document);
+    editor->addText("Hello, World!");
+    editor->addImage("picture.jpg");
+    editor->addText("This is a real-world document editor.");
+    editor->addNewLine();
+    editor->addTabSpace();
+    editor->addText("Indented text");
+    
+    // 3. Render (separate responsibility)
+    DocumentRenderer renderer(document);
+    string output = renderer.render();
+    cout << output << endl;
+    
+    // 4. Save (separate responsibility, pluggable storage)
+    Persistence* storage = new FileStorage();
+    storage->save(output);
+    
+    // Or use DBStorage:
+    // Persistence* dbStorage = new DBStorage();
+    // dbStorage->save(output);
+    
+    delete document;
+    delete editor;
+    delete storage;
+}
+```
+
+**Output:**
+```
+Hello, World!
+[Image: picture.jpg]
+This is a real-world document editor.
+    Indented text
+Document saved to file.
+```
+
+---
+
+## 6. Key Takeaways
+
+### Design Evolution Summary
+
+| Stage | Description | Principles Followed |
+|-------|-------------|---------------------|
+| **Bad** | One class does everything | ❌ SRP, OCP |
+| **Better** | Extract abstractions, delegate | ✅ SRP, OCP, LSP, ISP, DIP |
+| **Final** | Separate renderer; client orchestrates | ✅ All SOLID + LoD |
+
+### Lessons from This Case Study
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    INTERVIEW WISDOM                             │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  1. START WITH BAD DESIGN, then improve iteratively             │
+│                                                                  │
+│  2. DELEGATION is key — one class should not do everything      │
+│                                                                  │
+│  3. ABSTRACTION + POLYMORPHISM enables OCP                      │
+│                                                                  │
+│  4. CLIENT should orchestrate multiple services                 │
+│     (Don't overload one class with all responsibilities)        │
+│                                                                  │
+│  5. PRINCIPLE OF LEAST KNOWLEDGE (Law of Demeter)              │
+│     • Talk only to immediate friends                           │
+│     • Don't call methods on objects returned by methods         │
+│                                                                  │
+│  6. SOLID ARE PRINCIPLES, NOT LAWS                              │
+│     • Always a TRADE-OFF                                        │
+│     • In interviews, discuss trade-offs with interviewer        │
+│     • No perfect design exists in LLD                           │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### The Trade-off Example
+
+In this case study, two principles conflict:
+- **SRP** says `DocumentRenderer` should only render (good)
+- **LoD** says `DocumentRenderer` shouldn't reach through `Document` to `DocumentElement` (bad)
+
+**Resolution:** Accept the small LoD violation because SRP benefit outweighs it. This is a **subjective design decision** — discuss it in interviews.
+
+### Final Principle Checklist
+
+| Design Decision | Enables |
+|-----------------|---------|
+| Abstract `DocumentElement` | OCP, LSP, DIP |
+| Abstract `Persistence` | DIP, OCP |
+| Separate `DocumentRenderer` | SRP, LoD |
+| `DocumentEditor` delegates | SRP, DIP |
+| Client orchestrates | LoD |
+| Small interfaces | ISP |
+
+---
+
+## 7. Complete Code Files Reference
+
+The lecture references these final classes:
+1. `DocumentElement` (abstract) + `TextElement`, `ImageElement`, `NewLineElement`, `TabSpaceElement`
+2. `Document` (CRUD on elements)
+3. `DocumentRenderer` (renders document)
+4. `Persistence` (abstract) + `FileStorage`, `DBStorage`
+5. `DocumentEditor` (adds text/images only)
+6. `Client` (main — orchestrates all)
+
+---
+
+## 08. Strategy Design Pattern Explained with Real-World Example (32:39)
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
