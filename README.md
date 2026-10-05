@@ -5392,4 +5392,679 @@ The lecture references these final classes:
 
 ## 08. Strategy Design Pattern Explained with Real-World Example (32:39)
 
+This lecture introduces **Design Patterns** — reusable solutions to common software design problems — and deep-dives into the **Strategy Design Pattern**, proving why **composition is better than inheritance**.
+
+---
+
+## 1. Introduction to Design Patterns
+
+### What Are Design Patterns?
+
+> **Design Patterns are proven solutions to recurring problems in software design.**
+> When many developers faced the same problem, they found a standard path to solve it. That path is called a design pattern.
+
+### Why Do We Need Them?
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│              WHY DESIGN PATTERNS?                                   │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   Applications always evolve:                                       │
+│   • New features keep coming                                        │
+│   • Requirements keep changing                                      │
+│   • "Change is the only constant"                                   │
+│                                                                      │
+│   Goal: A FLEXIBLE DESIGN that minimizes code changes               │
+│         when new features are added                                 │
+│                                                                      │
+│   Tools for flexibility:                                            │
+│   • OOP Principles (Abstraction, Encapsulation, Inheritance,        │
+│     Polymorphism)                                                   │
+│   • SOLID Principles                                                │
+│   • Design Patterns  ← This series                                │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### The Core Idea Behind All Design Patterns
+
+Every design pattern essentially does the same thing:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│              THE FUNDAMENTAL DESIGN PATTERN IDEA                    │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   Application has TWO types of code:                                │
+│                                                                      │
+│   ┌─────────────────────┐    ┌─────────────────────┐                │
+│   │   STATIC PART       │    │   DYNAMIC PART      │                │
+│   │   (Doesn't change)  │    │   (Changes often)   │                │
+│   └─────────────────────┘    └─────────────────────┘                │
+│                                                                      │
+│   PATTERN:                                                          │
+│   1. EXTRACT the changing part                                      │
+│   2. Put it into SEPARATE classes                                   │
+│   3. Keep the static part isolated                                  │
+│                                                                      │
+│   Result: Changes affect ONLY the dynamic part —                    │
+│           no impact on the static part                              │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Official Count
+
+- **23 official design patterns** exist
+- All implement the same idea (separate changing from non-changing) in different ways
+
+---
+
+## 2. Strategy Pattern — Problem Statement
+
+### Application: Robot Simulation
+
+We're building an application that **simulates different robots** walking, talking, and (sometimes) flying.
+
+### Initial (Naive) Design Using Inheritance
+
+```
+                    ┌──────────────────────────┐
+                    │   <<abstract>>           │
+                    │   Robot                  │
+                    ├──────────────────────────┤
+                    │ + walk(): void           │
+                    │ + talk(): void           │
+                    │ + projection(): void = 0 │
+                    └────────────┬─────────────┘
+                                 △
+                    ┌────────────┴─────────────┐
+                    │                          │
+           ┌────────┴────────┐        ┌────────┴────────┐
+           │ CompanionRobot  │        │   WorkerRobot   │
+           ├─────────────────┤        ├─────────────────┤
+           │ + projection()  │        │ + projection()  │
+           └─────────────────┘        └─────────────────┘
+```
+
+```cpp
+class Robot {
+public:
+    virtual void walk() { cout << "Walking normally\n"; }
+    virtual void talk() { cout << "Talking normally\n"; }
+    virtual void projection() = 0;  // each robot looks different
+    virtual ~Robot() {}
+};
+
+class CompanionRobot : public Robot {
+public:
+    void projection() override { cout << "Companion projection\n"; }
+};
+
+class WorkerRobot : public Robot {
+public:
+    void projection() override { cout << "Worker projection\n"; }
+};
+```
+
+### New Requirement: Flying Robots
+
+**Sparrow Robot** (flies with wings), **Crow Robot** (flies with wings), **Jet Robot** (flies with jet), **Jet Robot 2, Jet Robot 3**...
+
+### ❌ What Happens If We Keep Using Inheritance?
+
+```
+                    Robot
+                      │
+         ┌────────────┼─────────────┐
+         │            │             │
+    Companion   Flyable Robot    Worker
+                      │
+              ┌───────┼────────┐
+              │       │        │
+          Sparrow   Crow     JetRobot
+                                │
+                   ┌────────────┼────────────┐
+                   │            │            │
+              JetRobot2    JetRobot3    JetRobot4
+                                            │
+                                       (and so on...)
+```
+
+### Problems with Inheritance
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│              PROBLEMS WITH INHERITANCE                              │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   1. ❌ CODE DUPLICATION                                            │
+│      • Same fly() method copy-pasted across many classes            │
+│      • Violates DRY (Don't Repeat Yourself)                         │
+│                                                                      │
+│   2. ❌ BLOATED HIERARCHY                                           │
+│      • Every new behavior (walk/talk/fly) combination explodes     │
+│      • Combinatorial explosion of subclasses                        │
+│                                                                      │
+│   3. ❌ OCP VIOLATION                                               │
+│      • Adding a new robot type requires changing structure          │
+│                                                                      │
+│   4. ❌ LSP VIOLATION RISK                                          │
+│      • Robots forced to implement methods they don't need           │
+│                                                                      │
+│   ⚡ FAMOUS QUOTE:                                                  │
+│   "The solution to inheritance is NOT more inheritance."            │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 3. Strategy Pattern — Solution
+
+### Definition
+
+> **Strategy Pattern defines a family of algorithms, puts them into separate classes, so that they can be changed at runtime.**
+
+### The Key Insight
+
+Split the robot's behavior into **separate strategies**:
+
+| Behavior | Strategy Interface |
+|----------|---------------------|
+| Walk | `Walkable` |
+| Talk | `Talkable` |
+| Fly | `Flyable` |
+| Projection | `Projectable` (optional improvement) |
+
+### Step 1: Extract Behavior Interfaces
+
+```
+    ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+    │  <<abstract>>   │  │  <<abstract>>   │  │  <<abstract>>   │
+    │   Walkable      │  │   Talkable      │  │   Flyable       │
+    ├─────────────────┤  ├─────────────────┤  ├─────────────────┤
+    │ + walk(): void  │  │ + talk(): void  │  │ + fly(): void   │
+    └────────┬────────┘  └────────┬────────┘  └────────┬────────┘
+             △                    △                    △
+      ┌──────┴──────┐      ┌──────┴──────┐      ┌──────┴──────┐
+      │             │      │             │      │             │
+ ┌────┴────┐   ┌────┴────┐ ┌────┴────┐ ┌────┴────┐ ┌────┴────┐ ┌────┴────┐
+ │ Normal  │   │ No Walk │ │ Normal  │ │ No Talk │ │ Normal  │ │ No Fly  │
+ │  Walk   │   │         │ │  Talk   │ │         │ │  Fly    │ │         │
+ └─────────┘   └─────────┘ └─────────┘ └─────────┘ └─────────┘ └─────────┘
+```
+
+**Note:** "Not walking", "Not talking", "Not flying" are ALSO valid behaviors!
+
+### Step 2: Code the Strategy Interfaces
+
+```cpp
+// ============ WALKING STRATEGY ============
+class Walkable {
+public:
+    virtual void walk() = 0;
+    virtual ~Walkable() {}
+};
+
+class NormalWalk : public Walkable {
+public:
+    void walk() override { cout << "Walking normally...\n"; }
+};
+
+class NoWalk : public Walkable {
+public:
+    void walk() override { cout << "Cannot walk\n"; }
+};
+
+// ============ TALKING STRATEGY ============
+class Talkable {
+public:
+    virtual void talk() = 0;
+    virtual ~Talkable() {}
+};
+
+class NormalTalk : public Talkable {
+public:
+    void talk() override { cout << "Talking normally...\n"; }
+};
+
+class NoTalk : public Talkable {
+public:
+    void talk() override { cout << "Cannot talk\n"; }
+};
+
+// ============ FLYING STRATEGY ============
+class Flyable {
+public:
+    virtual void fly() = 0;
+    virtual ~Flyable() {}
+};
+
+class NormalFly : public Flyable {
+public:
+    void fly() override { cout << "Flying normally...\n"; }
+};
+
+class NoFly : public Flyable {
+public:
+    void fly() override { cout << "Cannot fly\n"; }
+};
+
+// ============ PROJECTION STRATEGY (Optional improvement) ============
+class Projectable {
+public:
+    virtual void projection() = 0;
+    virtual ~Projectable() {}
+};
+
+class CompanionProjection : public Projectable {
+public:
+    void projection() override { cout << "Companion robot projection\n"; }
+};
+
+class WorkerProjection : public Projectable {
+public:
+    void projection() override { cout << "Worker robot projection\n"; }
+};
+```
+
+### Step 3: Robot Class Uses Composition
+
+```cpp
+class Robot {
+private:
+    // COMPOSITION: Robot HAS-A strategy for each behavior
+    Walkable* walkBehavior;
+    Talkable* talkBehavior;
+    Flyable* flyBehavior;
+    Projectable* projectionBehavior;
+    
+public:
+    Robot(Walkable* w, Talkable* t, Flyable* f, Projectable* p)
+        : walkBehavior(w), talkBehavior(t),
+          flyBehavior(f), projectionBehavior(p) {}
+    
+    // All methods DELEGATE to the strategies
+    void walk() { walkBehavior->walk(); }
+    void talk() { talkBehavior->talk(); }
+    void fly()  { flyBehavior->fly(); }
+    void projection() { projectionBehavior->projection(); }
+    
+    ~Robot() {
+        delete walkBehavior;
+        delete talkBehavior;
+        delete flyBehavior;
+        delete projectionBehavior;
+    }
+};
+```
+
+### Step 4: Client Creates Robots with Any Combination
+
+```cpp
+int main() {
+    // Companion Robot: walks, talks, doesn't fly
+    Robot* companion = new Robot(
+        new NormalWalk(),
+        new NormalTalk(),
+        new NoFly(),
+        new CompanionProjection()
+    );
+    
+    // Worker Robot: doesn't walk, doesn't talk, flies
+    Robot* worker = new Robot(
+        new NoWalk(),
+        new NoTalk(),
+        new NormalFly(),
+        new WorkerProjection()
+    );
+    
+    cout << "--- Companion Robot ---\n";
+    companion->walk();       // Walking normally...
+    companion->talk();       // Talking normally...
+    companion->fly();        // Cannot fly
+    companion->projection(); // Companion robot projection
+    
+    cout << "\n--- Worker Robot ---\n";
+    worker->walk();       // Cannot walk
+    worker->talk();       // Cannot talk
+    worker->fly();        // Flying normally...
+    worker->projection(); // Worker robot projection
+    
+    delete companion;
+    delete worker;
+}
+```
+
+**Output:**
+```
+--- Companion Robot ---
+Walking normally...
+Talking normally...
+Cannot fly
+Companion robot projection
+
+--- Worker Robot ---
+Cannot walk
+Cannot talk
+Flying normally...
+Worker robot projection
+```
+
+### Runtime Change: A Key Feature
+
+```cpp
+// Change behavior at RUNTIME
+companion = new Robot(
+    new NoWalk(),      // Changed from NormalWalk
+    new NormalTalk(),
+    new NormalFly(),   // Changed from NoFly
+    new CompanionProjection()
+);
+```
+
+---
+
+## 4. Standard UML for Strategy Pattern
+
+```
+                    ┌────────────────────────┐
+                    │        Client          │
+                    ├────────────────────────┤
+                    │ - strategy: Strategy*  │
+                    ├────────────────────────┤
+                    │ + execute(): void      │
+                    │   { strategy->run(); } │
+                    └───────────┬────────────┘
+                                │ (has-a)
+                                ▼
+                    ┌────────────────────────┐
+                    │   <<abstract>>         │
+                    │     Strategy           │
+                    ├────────────────────────┤
+                    │ + run(): void = 0      │
+                    └───────────┬────────────┘
+                                △
+                                │ (inheritance)
+              ┌─────────────────┼─────────────────┐
+              │                 │                 │
+     ┌────────┴───────┐ ┌───────┴───────┐ ┌───────┴───────┐
+     │ConcreteStrategy│ │ConcreteStrategy│ │ConcreteStrategy│
+     │      1         │ │      2         │ │      3         │
+     ├────────────────┤ ├────────────────┤ ├────────────────┤
+     │ + run()        │ │ + run()        │ │ + run()        │
+     └────────────────┘ └────────────────┘ └────────────────┘
+```
+
+### Key Points
+- **Client**: The class that uses the strategies (e.g., `Robot`)
+- **Strategy**: The abstract interface (e.g., `Walkable`)
+- **Concrete Strategy**: Actual implementations (e.g., `NormalWalk`, `NoWalk`)
+- **Client HAS-A Strategy** (composition, not inheritance)
+
+---
+
+## 5. Before vs After Comparison
+
+| Aspect | Inheritance Approach | Strategy Pattern |
+|--------|---------------------|------------------|
+| **Code Reuse** | Duplicated across classes | Single implementation per strategy |
+| **New Behavior** | Modify class hierarchy | Add new strategy class |
+| **New Combination** | New subclass needed | Compose with existing strategies |
+| **Runtime Change** | Impossible | Possible (change reference) |
+| **DRY Principle** | ❌ Violated | ✅ Followed |
+| **SRP** | ❌ Multiple behaviors per class | ✅ Each strategy has one job |
+| **OCP** | ❌ Violated | ✅ Followed |
+| **Class Hierarchy** | Explodes combinatorially | Flat and simple |
+| **Client Coupling** | Tight (inherits everything) | Loose (has only what it needs) |
+
+---
+
+## 6. Real-World Examples of Strategy Pattern
+
+### Example 1: Payment System
+
+```
+                    ┌─────────────────────┐
+                    │  PaymentSystem      │
+                    ├─────────────────────┤
+                    │ - strategy: Payable │
+                    ├─────────────────────┤
+                    │ + payNow(): void    │
+                    └──────────┬──────────┘
+                               │ (has-a)
+                               ▼
+                    ┌─────────────────────┐
+                    │  <<abstract>>       │
+                    │     Payable         │
+                    ├─────────────────────┤
+                    │ + pay(): void = 0   │
+                    └──────────┬──────────┘
+                               △
+              ┌────────────────┼────────────────┐
+              │                │                │
+        ┌─────┴─────┐    ┌─────┴─────┐    ┌─────┴──────┐
+        │  UPI      │    │Credit/Debit│    │Net Banking │
+        │ Payment   │    │ Card       │    │            │
+        └───────────┘    └────────────┘    └────────────┘
+```
+
+```cpp
+class Payable {
+public:
+    virtual void pay() = 0;
+    virtual ~Payable() {}
+};
+
+class UPIPayment : public Payable {
+public:
+    void pay() override { cout << "Paying via UPI\n"; }
+};
+
+class CardPayment : public Payable {
+public:
+    void pay() override { cout << "Paying via Credit/Debit Card\n"; }
+};
+
+class NetBankingPayment : public Payable {
+public:
+    void pay() override { cout << "Paying via Net Banking\n"; }
+};
+
+class PaymentSystem {
+    Payable* strategy;
+public:
+    PaymentSystem(Payable* p) : strategy(p) {}
+    void payNow() { strategy->pay(); }
+};
+```
+
+### Example 2: Sorting Algorithms
+
+```
+                        ┌────────────────────┐
+                        │  Sorter (Client)   │
+                        ├────────────────────┤
+                        │ - strategy: Sort*  │
+                        ├────────────────────┤
+                        │ + sort()           │
+                        └──────────┬─────────┘
+                                   │ (has-a)
+                                   ▼
+                        ┌────────────────────┐
+                        │  <<abstract>>      │
+                        │     Sort           │
+                        ├────────────────────┤
+                        │ + sort() = 0       │
+                        └──────────┬─────────┘
+                                   △
+                  ┌────────────────┼─────────────────┐
+                  │                │                 │
+           ┌──────┴────┐    ┌──────┴─────┐    ┌──────┴────┐
+           │Quick Sort │    │Merge Sort  │    │Insertion  │
+           │           │    │            │    │Sort       │
+           └───────────┘    └────────────┘    └───────────┘
+                  │
+           ┌──────┼──────┐
+           │             │
+      ┌────┴────┐   ┌────┴─────┐
+      │Normal   │   │Randomized│
+      │Quick    │   │Quick     │
+      └─────────┘   └──────────┘
+```
+
+The client calls `sort()`, and polymorphism decides which algorithm runs.
+
+---
+
+## 7. Benefits Summary
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│              BENEFITS OF STRATEGY PATTERN                           │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   ✅ FAVORS COMPOSITION OVER INHERITANCE                            │
+│      "The solution to inheritance is not more inheritance."         │
+│                                                                      │
+│   ✅ OPEN/CLOSED PRINCIPLE                                          │
+│      • New strategies = new classes (no modification)               │
+│      • Existing Robot class untouched when adding new behavior      │
+│                                                                      │
+│   ✅ SINGLE RESPONSIBILITY PRINCIPLE                                │
+│      • Each strategy class has one job                              │
+│      • Robot class only delegates                                   │
+│                                                                      │
+│   ✅ RUNTIME FLEXIBILITY                                            │
+│      • Behavior can be swapped at runtime                           │
+│      • Perfect for dynamic systems                                  │
+│                                                                      │
+│   ✅ NO COMBINATORIAL EXPLOSION                                     │
+│      • N behaviors with M variants = N*M strategies (not N^M)       │
+│      • Not a hierarchical tree, just flat interchangeable parts     │
+│                                                                      │
+│   ✅ FOLLOWS DRY PRINCIPLE                                          │
+│      • No code duplication across classes                           │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 8. Key Takeaways
+
+### The One-Line Summary
+
+> **"Favor Composition Over Inheritance."**
+
+### The Big Realization
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                                                                      │
+│    ┌─────────────────────┐       ┌─────────────────────┐            │
+│    │   INHERITANCE       │       │   COMPOSITION       │            │
+│    │   (IS-A)            │       │   (HAS-A)           │            │
+│    ├─────────────────────┤       ├─────────────────────┤            │
+│    │ • Rigid at compile  │       │ • Flexible at run   │            │
+│    │ • Explodes with new │       │ • Scales linearly   │            │
+│    │   combinations      │       │   with new features │            │
+│    │ • Code duplication  │       │ • No duplication    │            │
+│    │ • Tight coupling    │       │ • Loose coupling    │            │
+│    └─────────────────────┘       └─────────────────────┘            │
+│                                                                      │
+│   When in doubt, delegate. Use inheritance only for                 │
+│   genuine "is-a" relationships.                                     │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### When to Use Strategy Pattern
+
+- Multiple algorithms exist for the same task
+- You want to switch algorithms at runtime
+- A class has multiple behaviors that vary independently
+- You want to isolate algorithm implementation from client code
+
+### When NOT to Use It
+
+- Only one or two variants exist and won't grow
+- The behavior never changes at runtime
+- Simplicity is more important than flexibility
+
+### Interview Wisdom
+
+> **Almost every LLD interview will include the Strategy Pattern somewhere.** It's one of the most useful and commonly applied design patterns in real applications.
+
+---
+
+## 9. Final Diagram: Strategy Pattern in Action
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                     STRATEGY PATTERN — IN ACTION                     │
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                       │
+│   CLIENT (main)                                                      │
+│      │                                                                │
+│      ├─── Creates Robot with strategies                              │
+│      │                                                                │
+│      ▼                                                                │
+│   ┌────────────────────────────────────────────────┐                 │
+│   │              Robot (Client Class)              │                 │
+│   ├────────────────────────────────────────────────┤                 │
+│   │ - walkBehavior: Walkable*                      │                 │
+│   │ - talkBehavior: Talkable*                      │                 │
+│   │ - flyBehavior:  Flyable*                       │                 │
+│   │ - projection:   Projectable*                   │                 │
+│   ├────────────────────────────────────────────────┤                 │
+│   │ + walk()      { walkBehavior->walk(); }        │                 │
+│   │ + talk()      { talkBehavior->talk(); }        │                 │
+│   │ + fly()       { flyBehavior->fly();   }        │                 │
+│   │ + projection(){ projection->projection();}     │                 │
+│   └──────────┬──────────┬───────────┬──────────────┘                 │
+│              │          │           │                                 │
+│      ┌───────┘          │           └───────┐                        │
+│      │                  │                   │                        │
+│      ▼                  ▼                   ▼                        │
+│  ┌─────────┐       ┌─────────┐         ┌─────────┐                  │
+│  │Walkable │       │Talkable │         │Flyable  │  ...             │
+│  │<<iface>>│       │<<iface>>│         │<<iface>>│                  │
+│  └────┬────┘       └────┬────┘         └────┬────┘                  │
+│       △                 △                   △                        │
+│       │                 │                   │                        │
+│   ┌───┴───┐         ┌───┴───┐           ┌───┴───┐                    │
+│   │Normal │ /NoWalk │Normal │ /NoTalk   │Normal │ /NoFly             │
+│   │Walk   │         │Talk   │           │Fly    │                    │
+│   └───────┘         └───────┘           └───────┘                    │
+│                                                                       │
+│   KEY INSIGHT:                                                       │
+│   Each strategy is INDEPENDENT. Change one without affecting others.│
+│                                                                       │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 10. Conclusion
+
+The **Strategy Design Pattern** is one of the most widely used design patterns. It:
+
+1. **Solves the "inheritance explosion" problem** by replacing inheritance with composition
+2. **Enables runtime flexibility** — swap behaviors on the fly
+3. **Respects SOLID principles** — especially SRP and OCP
+4. **Follows DRY** — no code duplication
+5. **Is used everywhere** in real applications (payment systems, sorting, notifications, etc.)
+
+**Golden Rule:** 
+> **"Favor composition over inheritance."**
+
+Whenever you find yourself duplicating behavior across sibling classes, reach for the Strategy Pattern.
+
+---
+
+## 09. Factory Design Pattern | Simple, Factory Method & Abstract Factory with Real-Life Examples (32:09)
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
