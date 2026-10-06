@@ -6067,4 +6067,884 @@ Whenever you find yourself duplicating behavior across sibling classes, reach fo
 
 ## 09. Factory Design Pattern | Simple, Factory Method & Abstract Factory with Real-Life Examples (32:09)
 
+This lecture covers the **Factory Design Pattern** — one of the most widely used patterns in LLD. It explains why we need object creation to be separated from business logic and covers three variants: **Simple Factory**, **Factory Method**, and **Abstract Factory**.
+
+---
+
+## 1. Introduction — Why Factory Pattern?
+
+### The Core Problem
+
+In **Strategy Pattern**, we assumed objects were already created somewhere else. But in real code, **someone must actually create those objects** using `new`.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    THE CORE PROBLEM                                 │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   Applications have TWO types of logic:                             │
+│                                                                      │
+│   ┌────────────────────────┐    ┌────────────────────────┐         │
+│   │    BUSINESS LOGIC      │    │   OBJECT CREATION      │         │
+│   │                        │    │      LOGIC             │         │
+│   ├────────────────────────┤    ├────────────────────────┤         │
+│   │ • What the app does    │    │ • How objects are made │         │
+│   │ • Notification routing │    │ • `new` keyword usage  │         │
+│   │ • Payment processing   │    │ • Which class to pick  │         │
+│   └────────────────────────┘    └────────────────────────┘         │
+│                                                                      │
+│   PROBLEM: Mixing these two makes code:                             │
+│   • Complex to read                                                 │
+│   • Hard to understand                                              │
+│   • Tightly coupled                                                 │
+│                                                                      │
+│   SOLUTION: Factory Design Pattern                                  │
+│   → Separate object creation from business logic                    │
+│   → Client just asks: "Give me an object"                           │
+│   → Factory handles: "Which one, how, and where"                    │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Real-World Analogy
+
+Just like a **real-world factory** produces products (cars, phones, toys), a **software factory class** produces objects.
+
+### The Three Types of Factory
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                     THREE FACTORY TYPES                             │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   1. SIMPLE FACTORY          (not a true pattern — a principle)    │
+│      → One factory class, one method                                │
+│      → Decides which concrete class to instantiate                  │
+│                                                                      │
+│   2. FACTORY METHOD          (official design pattern)              │
+│      → Factory itself is abstract                                   │
+│      → Subclasses decide which class to instantiate                 │
+│                                                                      │
+│   3. ABSTRACT FACTORY        (official design pattern)              │
+│      → Factory creates FAMILIES of related objects                  │
+│      → Multiple products from a single factory                      │
+│                                                                      │
+│   Note: Simple Factory extends → Factory Method extends →           │
+│         Abstract Factory. Each is an extension of the previous.     │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 2. Simple Factory
+
+### Problem: Burger Shop
+
+We need a burger shop that can create different types of burgers based on user choice.
+
+```
+                    ┌──────────────────────────┐
+                    │   <<abstract>>           │
+                    │   Burger                 │
+                    ├──────────────────────────┤
+                    │ + prepare(): void = 0    │
+                    └────────────┬─────────────┘
+                                 △
+              ┌──────────────────┼──────────────────┐
+              │                  │                  │
+     ┌────────┴───────┐ ┌────────┴────────┐ ┌──────┴─────────┐
+     │ BasicBurger    │ │ StandardBurger  │ │ PremiumBurger  │
+     ├────────────────┤ ├─────────────────┤ ├────────────────┤
+     │ + prepare()    │ │ + prepare()     │ │ + prepare()    │
+     └────────────────┘ └─────────────────┘ └────────────────┘
+```
+
+### UML for Simple Factory
+
+```
+                ┌──────────────────────┐
+                │   BurgerFactory      │
+                ├──────────────────────┤
+                │ + createBurger(type) │───────┐
+                │   : Burger           │       │ (has-a)
+                └──────────────────────┘       │
+                                               ▼
+                                    ┌──────────────────────┐
+                                    │   <<abstract>>       │
+                                    │      Burger          │
+                                    ├──────────────────────┤
+                                    │ + prepare() = 0      │
+                                    └──────────┬───────────┘
+                                               △
+                            ┌──────────────────┼──────────────────┐
+                            │                  │                  │
+                    ┌───────┴────────┐ ┌───────┴────────┐ ┌───────┴────────┐
+                    │ BasicBurger    │ │StandardBurger  │ │PremiumBurger   │
+                    └────────────────┘ └────────────────┘ └────────────────┘
+```
+
+### Code for Simple Factory
+
+```cpp
+#include <iostream>
+#include <string>
+using namespace std;
+
+// Abstract Product
+class Burger {
+public:
+    virtual void prepare() = 0;
+    virtual ~Burger() {}
+};
+
+// Concrete Products
+class BasicBurger : public Burger {
+public:
+    void prepare() override {
+        cout << "Preparing Basic Burger with bun, patty, and ketchup!\n";
+    }
+};
+
+class StandardBurger : public Burger {
+public:
+    void prepare() override {
+        cout << "Preparing Standard Burger with bun, patty, cheese, and lettuce!\n";
+    }
+};
+
+class PremiumBurger : public Burger {
+public:
+    void prepare() override {
+        cout << "Preparing Premium Burger with gourmet bun, premium patty, cheese, lettuce, and secret sauce!\n";
+    }
+};
+
+// THE FACTORY — Decides which concrete class to instantiate
+class BurgerFactory {
+public:
+    Burger* createBurger(string type) {
+        if (type == "basic") {
+            return new BasicBurger();
+        } else if (type == "standard") {
+            return new StandardBurger();
+        } else if (type == "premium") {
+            return new PremiumBurger();
+        } else {
+            cout << "Invalid burger type!\n";
+            return nullptr;
+        }
+    }
+};
+
+// Client
+int main() {
+    string type = "standard";
+    BurgerFactory* myBurgerFactory = new BurgerFactory();
+    
+    Burger* burger = myBurgerFactory->createBurger(type);
+    burger->prepare();  // Output: Preparing Standard Burger with bun, patty, cheese, and lettuce!
+    
+    delete burger;
+    delete myBurgerFactory;
+}
+```
+
+### Definition
+
+> **"A factory class that decides which concrete class to instantiate."**
+
+### Key Characteristics
+
+| Aspect | Description |
+|--------|-------------|
+| **Structure** | One factory class, one create method |
+| **Decision** | Based on a parameter (string/enum) |
+| **Output** | Concrete product returned as abstract type |
+| **Pattern?** | Not officially a pattern — more of a principle |
+
+---
+
+## 3. Factory Method
+
+### Problem: Multiple Burger Franchises
+
+Now we have **two franchises**: 
+- **SinghBurger** — makes normal burgers (basic, standard, premium)
+- **KingBurger** — makes veg-based burgers (basic veg, standard veg, premium veg)
+
+The **factory itself** needs to be abstract!
+
+### UML for Factory Method
+
+```
+                ┌────────────────────────────┐
+                │    <<abstract>>            │
+                │    BurgerFactory           │
+                ├────────────────────────────┤
+                │ + createBurger(): Burger=0 │
+                └─────────────┬──────────────┘
+                              △
+              ┌───────────────┴───────────────┐
+              │                               │
+     ┌────────┴────────┐              ┌───────┴─────────┐
+     │  SinghBurger    │              │   KingBurger    │
+     ├─────────────────┤              ├─────────────────┤
+     │ + createBurger()│              │ + createBurger()│
+     └────────┬────────┘              └────────┬────────┘
+              │                                │
+              │ creates                        │ creates
+              ▼                                ▼
+    ┌─────────────────────┐         ┌─────────────────────────┐
+    │ BasicBurger         │         │ BasicVegBurger          │
+    │ StandardBurger      │         │ StandardVegBurger       │
+    │ PremiumBurger       │         │ PremiumVegBurger        │
+    └─────────────────────┘         └─────────────────────────┘
+              △                                △
+              └───────────────┬────────────────┘
+                              │
+                    ┌─────────┴──────────┐
+                    │   <<abstract>>     │
+                    │      Burger        │
+                    ├────────────────────┤
+                    │ + prepare() = 0    │
+                    └────────────────────┘
+```
+
+### Code for Factory Method
+
+```cpp
+#include <iostream>
+#include <string>
+using namespace std;
+
+// ============ PRODUCT HIERARCHY ============
+class Burger {
+public:
+    virtual void prepare() = 0;
+    virtual ~Burger() {}
+};
+
+// Normal Burgers
+class BasicBurger : public Burger {
+public:
+    void prepare() override {
+        cout << "Preparing Basic Burger with bun, patty, and ketchup!\n";
+    }
+};
+
+class StandardBurger : public Burger {
+public:
+    void prepare() override {
+        cout << "Preparing Standard Burger with bun, patty, cheese, and lettuce!\n";
+    }
+};
+
+class PremiumBurger : public Burger {
+public:
+    void prepare() override {
+        cout << "Preparing Premium Burger with gourmet bun, premium patty, cheese, lettuce, and secret sauce!\n";
+    }
+};
+
+// Veg Burgers
+class BasicVegBurger : public Burger {
+public:
+    void prepare() override {
+        cout << "Preparing Basic Veg Burger with bun, veg patty, and ketchup!\n";
+    }
+};
+
+class StandardVegBurger : public Burger {
+public:
+    void prepare() override {
+        cout << "Preparing Standard Veg Burger with bun, veg patty, cheese, and lettuce!\n";
+    }
+};
+
+class PremiumVegBurger : public Burger {
+public:
+    void prepare() override {
+        cout << "Preparing Premium Veg Burger with gourmet bun, premium veg patty, cheese, lettuce, and secret sauce!\n";
+    }
+};
+
+// ============ FACTORY HIERARCHY ============
+class BurgerFactory {
+public:
+    virtual Burger* createBurger(string type) = 0;
+    virtual ~BurgerFactory() {}
+};
+
+// Concrete Factory 1: Singh Burger (normal burgers)
+class SinghBurger : public BurgerFactory {
+public:
+    Burger* createBurger(string type) override {
+        if (type == "basic")   return new BasicBurger();
+        if (type == "standard") return new StandardBurger();
+        if (type == "premium")  return new PremiumBurger();
+        cout << "Invalid burger type!\n";
+        return nullptr;
+    }
+};
+
+// Concrete Factory 2: King Burger (veg burgers)
+class KingBurger : public BurgerFactory {
+public:
+    Burger* createBurger(string type) override {
+        if (type == "basic")   return new BasicVegBurger();
+        if (type == "standard") return new StandardVegBurger();
+        if (type == "premium")  return new PremiumVegBurger();
+        cout << "Invalid burger type!\n";
+        return nullptr;
+    }
+};
+
+// ============ CLIENT ============
+int main() {
+    string type = "basic";
+    
+    // Create a King Burger factory (veg burgers)
+    BurgerFactory* myBurgerFactory = new KingBurger();
+    
+    Burger* burger = myBurgerFactory->createBurger(type);
+    burger->prepare();
+    // Output: Preparing Basic Veg Burger with bun, veg patty, and ketchup!
+    
+    delete burger;
+    delete myBurgerFactory;
+}
+```
+
+### Definition
+
+> **"Define an interface for creating an object, but allow subclasses to decide which class to instantiate."**
+
+### Key Characteristics
+
+| Aspect | Description |
+|--------|-------------|
+| **Structure** | Abstract factory + concrete factories |
+| **Decision** | Made by concrete factory subclasses |
+| **Output** | Concrete product from concrete factory |
+| **Extension** | New factory = new subclass (no modification) |
+
+---
+
+## 4. Abstract Factory Method
+
+### Problem: Factories Producing Multiple Product Families
+
+Now **SinghBurger** and **KingBurger** both produce **two products**: Burgers AND Garlic Bread.
+
+### UML for Abstract Factory
+
+```
+                       ┌───────────────────────────────┐
+                       │      <<abstract>>             │
+                       │       MealFactory             │
+                       ├───────────────────────────────┤
+                       │ + createBurger(): Burger = 0  │
+                       │ + createGarlicBread(): GB = 0 │
+                       └──────────────┬────────────────┘
+                                      △
+                       ┌──────────────┴───────────────┐
+                       │                              │
+              ┌────────┴────────┐             ┌───────┴─────────┐
+              │   SinghBurger   │             │   KingBurger    │
+              ├─────────────────┤             ├─────────────────┤
+              │ + createBurger()│             │ + createBurger()│
+              │ + createGarlic()│             │ + createGarlic()│
+              └────────┬────────┘             └────────┬────────┘
+                       │                               │
+         ┌─────────────┴─────────────┐   ┌─────────────┴─────────────┐
+         │  Normal products          │   │  Veg products             │
+         │                           │   │                           │
+         │  BasicBurger              │   │  BasicVegBurger           │
+         │  StandardBurger           │   │  StandardVegBurger        │
+         │  PremiumBurger            │   │  PremiumVegBurger         │
+         │                           │   │                           │
+         │  BasicGarlicBread         │   │  BasicVegGarlicBread      │
+         │  CheeseGarlicBread        │   │  CheeseVegGarlicBread     │
+         └───────────────────────────┘   └───────────────────────────┘
+```
+
+### Code for Abstract Factory
+
+```cpp
+#include <iostream>
+#include <string>
+using namespace std;
+
+// ============ PRODUCT FAMILY 1: BURGERS ============
+class Burger {
+public:
+    virtual void prepare() = 0;
+    virtual ~Burger() {}
+};
+
+class BasicBurger : public Burger {
+public:
+    void prepare() override { cout << "Preparing Basic Burger\n"; }
+};
+
+class StandardBurger : public Burger {
+public:
+    void prepare() override { cout << "Preparing Standard Burger\n"; }
+};
+
+class PremiumBurger : public Burger {
+public:
+    void prepare() override { cout << "Preparing Premium Burger\n"; }
+};
+
+class BasicVegBurger : public Burger {
+public:
+    void prepare() override { cout << "Preparing Basic Veg Burger\n"; }
+};
+
+class StandardVegBurger : public Burger {
+public:
+    void prepare() override { cout << "Preparing Standard Veg Burger\n"; }
+};
+
+class PremiumVegBurger : public Burger {
+public:
+    void prepare() override { cout << "Preparing Premium Veg Burger\n"; }
+};
+
+// ============ PRODUCT FAMILY 2: GARLIC BREAD ============
+class GarlicBread {
+public:
+    virtual void prepare() = 0;
+    virtual ~GarlicBread() {}
+};
+
+class BasicGarlicBread : public GarlicBread {
+public:
+    void prepare() override { cout << "Preparing Basic Garlic Bread\n"; }
+};
+
+class CheeseGarlicBread : public GarlicBread {
+public:
+    void prepare() override { cout << "Preparing Cheese Garlic Bread\n"; }
+};
+
+class BasicVegGarlicBread : public GarlicBread {
+public:
+    void prepare() override { cout << "Preparing Basic Veg Garlic Bread\n"; }
+};
+
+class CheeseVegGarlicBread : public GarlicBread {
+public:
+    void prepare() override { cout << "Preparing Cheese Veg Garlic Bread\n"; }
+};
+
+// ============ ABSTRACT FACTORY ============
+class MealFactory {
+public:
+    virtual Burger* createBurger(string type) = 0;
+    virtual GarlicBread* createGarlicBread(string type) = 0;
+    virtual ~MealFactory() {}
+};
+
+// Concrete Factory 1: Singh Burger (normal items)
+class SinghBurger : public MealFactory {
+public:
+    Burger* createBurger(string type) override {
+        if (type == "basic")    return new BasicBurger();
+        if (type == "standard") return new StandardBurger();
+        if (type == "premium")  return new PremiumBurger();
+        return nullptr;
+    }
+    
+    GarlicBread* createGarlicBread(string type) override {
+        if (type == "basic")   return new BasicGarlicBread();
+        if (type == "cheese")  return new CheeseGarlicBread();
+        return nullptr;
+    }
+};
+
+// Concrete Factory 2: King Burger (veg items)
+class KingBurger : public MealFactory {
+public:
+    Burger* createBurger(string type) override {
+        if (type == "basic")    return new BasicVegBurger();
+        if (type == "standard") return new StandardVegBurger();
+        if (type == "premium")  return new PremiumVegBurger();
+        return nullptr;
+    }
+    
+    GarlicBread* createGarlicBread(string type) override {
+        if (type == "basic")   return new BasicVegGarlicBread();
+        if (type == "cheese")  return new CheeseVegGarlicBread();
+        return nullptr;
+    }
+};
+
+// ============ CLIENT ============
+int main() {
+    string burgerType = "basic";
+    string garlicBreadType = "cheese";
+    
+    // Choose a factory
+    MealFactory* mealFactory = new KingBurger();
+    
+    Burger* burger = mealFactory->createBurger(burgerType);
+    GarlicBread* garlicBread = mealFactory->createGarlicBread(garlicBreadType);
+    
+    burger->prepare();       // Output: Preparing Basic Veg Burger
+    garlicBread->prepare();  // Output: Preparing Cheese Veg Garlic Bread
+    
+    delete burger;
+    delete garlicBread;
+    delete mealFactory;
+}
+```
+
+### Definition
+
+> **"Provide an interface for creating families of related objects without specifying their concrete classes."**
+
+### Key Characteristics
+
+| Aspect | Description |
+|--------|-------------|
+| **Structure** | Abstract factory with multiple product methods |
+| **Decision** | Factory family + product type |
+| **Output** | Multiple related products from one factory |
+| **Family Concept** | Products are designed to work together |
+
+---
+
+## 5. Comparison Table
+
+| Feature | Simple Factory | Factory Method | Abstract Factory |
+|---------|----------------|----------------|------------------|
+| **Official Pattern?** | ❌ (Principle) | ✅ (Pattern) | ✅ (Pattern) |
+| **Factory** | Concrete class | Abstract + concrete | Abstract + concrete |
+| **Product Count** | One family | One family | Multiple families |
+| **Decision By** | Parameter | Subclass | Subclass + parameter |
+| **Complexity** | Low | Medium | High |
+| **Example** | `BurgerFactory` | `SinghBurger` / `KingBurger` | `MealFactory` (Burger + GarlicBread) |
+| **Extensibility** | Modify factory | Add new factory subclass | Add new factory family |
+
+---
+
+## 6. UML Diagrams Summary
+
+### Simple Factory
+
+```
+                  ┌─────────────────────┐
+                  │   Client            │
+                  └──────────┬──────────┘
+                             │ uses
+                             ▼
+                  ┌─────────────────────┐
+                  │   ProductFactory    │
+                  ├─────────────────────┤
+                  │ + create(type)      │
+                  └──────────┬──────────┘
+                             │ creates
+                             ▼
+                  ┌─────────────────────┐
+                  │   <<abstract>>      │
+                  │     Product         │
+                  ├─────────────────────┤
+                  │ + operation() = 0   │
+                  └──────────┬──────────┘
+                             △
+              ┌──────────────┼──────────────┐
+              │              │              │
+         Concrete1      Concrete2      Concrete3
+```
+
+### Factory Method
+
+```
+                  ┌─────────────────────┐
+                  │   Client            │
+                  └──────────┬──────────┘
+                             │ uses
+                             ▼
+                  ┌─────────────────────┐
+                  │  <<abstract>>       │
+                  │  ProductFactory     │
+                  ├─────────────────────┤
+                  │ + create(): Product │
+                  └──────────┬──────────┘
+                             △
+              ┌──────────────┴──────────────┐
+              │                             │
+        ConcreteFactory1              ConcreteFactory2
+              │                             │
+              │ creates                     │ creates
+              ▼                             ▼
+         Product1                      Product2
+              △                             △
+              └──────────────┬──────────────┘
+                             │
+                    ┌────────┴────────┐
+                    │  <<abstract>>   │
+                    │    Product      │
+                    └─────────────────┘
+```
+
+### Abstract Factory
+
+```
+                  ┌─────────────────────┐
+                  │   Client            │
+                  └──────────┬──────────┘
+                             │ uses
+                             ▼
+                  ┌─────────────────────┐
+                  │  <<abstract>>       │
+                  │  AbstractFactory    │
+                  ├─────────────────────┤
+                  │ + createProductA()  │
+                  │ + createProductB()  │
+                  └──────────┬──────────┘
+                             △
+              ┌──────────────┴──────────────┐
+              │                             │
+        Factory1 (Family1)            Factory2 (Family2)
+              │                             │
+              │ creates both                │ creates both
+              ▼                             ▼
+    ┌───────────────────┐         ┌───────────────────┐
+    │ ProductA1         │         │ ProductA2         │
+    │ ProductB1         │         │ ProductB2         │
+    └───────────────────┘         └───────────────────┘
+              △                             △
+              │                             │
+    ┌─────────┴─────────┐         ┌─────────┴─────────┐
+    │ ProductA abstract │         │ ProductB abstract │
+    └───────────────────┘         └───────────────────┘
+```
+
+---
+
+## 7. Real-World Applications
+
+### Application 1: Notification System
+
+```
+                  ┌─────────────────────┐
+                  │   NotificationFactory│
+                  ├─────────────────────┤
+                  │ + create(type)      │
+                  └──────────┬──────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              │              │              │
+              ▼              ▼              ▼
+         EmailNotif     PushNotif       SMSNotif
+```
+
+```cpp
+// Abstract product
+class Notification {
+public:
+    virtual void notify() = 0;
+    virtual ~Notification() {}
+};
+
+class EmailNotification : public Notification {
+public:
+    void notify() override { cout << "Sending Email Notification\n"; }
+};
+
+class PushNotification : public Notification {
+public:
+    void notify() override { cout << "Sending Push Notification\n"; }
+};
+
+class SMSNotification : public Notification {
+public:
+    void notify() override { cout << "Sending SMS Notification\n"; }
+};
+
+// Simple Factory
+class NotificationFactory {
+public:
+    Notification* createNotification(string type) {
+        if (type == "email") return new EmailNotification();
+        if (type == "push")  return new PushNotification();
+        if (type == "sms")   return new SMSNotification();
+        return nullptr;
+    }
+};
+```
+
+### Application 2: Database Connections
+
+```
+                  ┌─────────────────────┐
+                  │ DatabaseFactory     │
+                  ├─────────────────────┤
+                  │ + create(type)      │
+                  └──────────┬──────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              │              │              │
+              ▼              ▼              ▼
+         MySQL           MongoDB        PostgreSQL
+```
+
+---
+
+## 8. Factory vs Strategy — When to Use Which?
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│              FACTORY vs STRATEGY — DECISION GUIDE                   │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   Ask yourself: "What is my intent?"                                │
+│                                                                      │
+│   ┌────────────────────────────────────────────────────────────┐   │
+│   │  "I want to VARY the algorithm at runtime"                 │   │
+│   │  → Use STRATEGY PATTERN                                     │   │
+│   │  → Assumes objects already exist                            │   │
+│   │  → Example: Switch payment methods at checkout             │   │
+│   └────────────────────────────────────────────────────────────┘   │
+│                                                                      │
+│   ┌────────────────────────────────────────────────────────────┐   │
+│   │  "I want to SEPARATE object creation from business logic"  │   │
+│   │  → Use FACTORY PATTERN                                      │   │
+│   │  → Creates objects, then hands them over                    │   │
+│   │  → Example: Create a notification based on user preference │   │
+│   └────────────────────────────────────────────────────────────┘   │
+│                                                                      │
+│   NOTE: Both can be used TOGETHER!                                  │
+│   Factory creates the strategy objects, then client uses Strategy   │
+│   pattern to swap them at runtime.                                  │
+│                                                                      │
+│   KEY INSIGHT: There's no single right answer. It depends on        │
+│   your intent, application context, and design goals.               │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 9. Key Takeaways
+
+### The Golden Rule
+
+> **Factory Pattern separates object creation logic from business logic, making the client code cleaner and more decoupled.**
+
+### Benefits
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    BENEFITS OF FACTORY PATTERN                      │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   ✅ DECOUPLING                                                     │
+│      Client doesn't know HOW objects are created                    │
+│                                                                      │
+│   ✅ SINGLE RESPONSIBILITY                                          │
+│      Factory handles creation; client handles business logic        │
+│                                                                      │
+│   ✅ OPEN/CLOSED PRINCIPLE                                          │
+│      Add new product types without modifying client                 │
+│                                                                      │
+│   ✅ ENCAPSULATION                                                  │
+│      Complex creation logic is hidden inside factory                │
+│                                                                      │
+│   ✅ MAINTAINABILITY                                                │
+│      Changes to creation logic stay in one place                    │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### When to Use Factory Pattern
+
+| Situation | Use |
+|-----------|-----|
+| Object creation logic is complex | ✅ Factory |
+| Multiple related products exist | ✅ Abstract Factory |
+| Need to decide type at runtime | ✅ Factory Method |
+| Simple object creation | ❌ Just use `new` |
+| Only one type of product | ❌ Overkill |
+
+### Interview Wisdom
+
+> **Almost every LLD interview will require the Factory Pattern.** It's ubiquitous in real-world applications — whenever you need flexible, decoupled object creation, the Factory Pattern is the answer.
+
+### The Three Patterns in One Line
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                                                                      │
+│   Simple Factory:    One class creates objects based on parameter   │
+│   Factory Method:    Subclasses decide which class to create        │
+│   Abstract Factory:  Families of related objects from one factory   │
+│                                                                      │
+│   "Simple Factory → Factory Method → Abstract Factory"              │
+│   Each extends the previous one for more flexibility.               │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 10. Complete Summary Diagram
+
+```
+┌───────────────────────────────────────────────────────────────────────┐
+│                     FACTORY PATTERN OVERVIEW                           │
+├───────────────────────────────────────────────────────────────────────┤
+│                                                                        │
+│   CLIENT (Business Logic)                                              │
+│      │                                                                 │
+│      │ "Give me an object"                                             │
+│      ▼                                                                 │
+│   ┌──────────────────────┐    ┌──────────────────────────┐            │
+│   │    FACTORY           │───▶│   PRODUCT HIERARCHY      │            │
+│   │  (Object Creation)   │    │   (Abstract Product)     │            │
+│   └──────────────────────┘    └──────────────────────────┘            │
+│              │                            △                            │
+│              │ decides                    │ extends                    │
+│              │ which                       │                            │
+│              ▼                            │                            │
+│   ┌──────────────────────┐    ┌───────────┴──────────────┐            │
+│   │  CONCRETE FACTORY    │    │  CONCRETE PRODUCTS       │            │
+│   │  (Specific types)    │    │  (Basic, Standard, ...)  │            │
+│   └──────────────────────┘    └──────────────────────────┘            │
+│                                                                        │
+│   Three variations:                                                    │
+│   1. Simple Factory    — Concrete factory class                       │
+│   2. Factory Method    — Abstract factory + concrete factories        │
+│   3. Abstract Factory  — Creates families of related products         │
+│                                                                        │
+│   Key benefit: Decouples client from object creation logic.           │
+│                                                                        │
+└───────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 11. Code Files Summary
+
+The lecture produces three complete code files:
+
+1. **Simple Factory** — `BurgerFactory` with one method handling 3 types
+2. **Factory Method** — `BurgerFactory` abstract + `SinghBurger` + `KingBurger` concrete factories
+3. **Abstract Factory** — `MealFactory` abstract + concrete factories creating Burger AND GarlicBread
+
+All examples follow the pattern:
+- **Abstract Product** (interface/abstract class)
+- **Concrete Products** (specific implementations)
+- **Abstract Factory** (interface for creation)
+- **Concrete Factories** (specific creators)
+- **Client** (uses factories to get products)
+
+---
+
+## 10. Singleton Design Pattern | Thread-Safe, Lazy & Eager Initialization + Real Use Cases (32:34)
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
