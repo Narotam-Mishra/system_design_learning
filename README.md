@@ -6947,4 +6947,6 @@ All examples follow the pattern:
 
 ## 10. Singleton Design Pattern | Thread-Safe, Lazy & Eager Initialization + Real Use Cases (32:34)
 
+## 11. Build Zomato Food Delivery App (1:07:19)
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
