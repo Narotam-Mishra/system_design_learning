@@ -6949,4 +6949,930 @@ All examples follow the pattern:
 
 ## 11. Build Zomato Food Delivery App (1:07:19)
 
+This lecture is a **complete LLD interview walkthrough** for designing a Swiggy/Zomato clone called **Tomato**. It covers requirements gathering, UML design, design patterns, code implementation, and further extensions.
+
+---
+
+## 1. The LLD Interview Approach
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                  LLD INTERVIEW FLOW                                 │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   1. PROBLEM STATEMENT                                              │
+│      "Design a food delivery app"                                   │
+│                                                                      │
+│   2. REQUIREMENTS GATHERING                                         │
+│      • Ask counter-questions                                        │
+│      • Narrow down scope                                            │
+│      • Functional + Non-functional requirements                     │
+│                                                                      │
+│   3. HAPPY FLOW DISCUSSION                                          │
+│      • Walk through the main user journey                          │
+│      • Confirm both on same page                                    │
+│                                                                      │
+│   4. UML DIAGRAM                                                    │
+│      • Identify classes/objects                                     │
+│      • Define relationships                                         │
+│      • Discuss with interviewer                                     │
+│                                                                      │
+│   5. CODE IMPLEMENTATION                                            │
+│      • Working code (structure at minimum)                          │
+│      • Clean OOP + SOLID + Design Patterns                          │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+> **Key Insight:** The interviewer is not your enemy — they're your **friend/manager** helping you build the application. Always discuss, ask questions, and iterate.
+
+---
+
+## 2. Requirements Gathering
+
+### Functional Requirements (Happy Flow)
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    HAPPY FLOW                                       │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   User opens app                                                    │
+│      │                                                              │
+│      ▼                                                              │
+│   Search restaurants by location                                    │
+│      │                                                              │
+│      ▼                                                              │
+│   Select a restaurant → View menu items                             │
+│      │                                                              │
+│      ▼                                                              │
+│   Add items to cart                                                 │
+│      │                                                              │
+│      ▼                                                              │
+│   Checkout → Choose order type (Delivery / Pickup)                  │
+│      │                                                              │
+│      ▼                                                              │
+│   Make payment (UPI / Card / NetBanking)                            │
+│      │                                                              │
+│      ▼                                                              │
+│   Receive notification (order confirmed)                            │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Counter-Questions Asked
+
+| Question | Answer | Decision |
+|----------|--------|----------|
+| Do we build payment service? | No, it's 3rd party | Just integrate |
+| User-centric or delivery-agent-centric? | User-centric | Focus on user flow |
+| Notification service? | Assume it exists | Just call it |
+| Order types? | Delivery + Pickup | Two order types |
+
+### Functional vs Non-Functional
+
+| Type | Description | Example |
+|------|-------------|---------|
+| **Functional** | Product/business logic | Entities, interactions, search, cart, order |
+| **Non-Functional** | Quality attributes | Scalability, multithreading, performance |
+
+---
+
+## 3. Design Approach: Bottom-Up vs Top-Down
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│              BOTTOM-UP vs TOP-DOWN                                  │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   BOTTOM-UP (Used here)                                            │
+│   ─────────────────────                                            │
+│   1. Build SMALLER objects first                                    │
+│   2. Establish relationships between them                           │
+│   3. Build LARGER objects that contain them                         │
+│   4. Move up the hierarchy                                          │
+│                                                                      │
+│   TOP-DOWN                                                          │
+│   ────────                                                          │
+│   1. Build LARGER objects first                                     │
+│   2. Then build SMALLER objects inside                              │
+│   3. Connect dependencies                                           │
+│                                                                      │
+│   ✅ Bottom-Up is preferred in most LLD interviews                  │
+│      because once smaller objects exist, it's easier to             │
+│      connect them to larger objects.                                │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 4. UML Class Diagram (Bottom-Up Construction)
+
+### Step 1: MenuItem (Smallest Object)
+
+```
+┌──────────────────────────────────┐
+│          <<model>>               │
+│          MenuItem                │
+├──────────────────────────────────┤
+│ - code: String                   │
+│ - name: String                   │
+│ - price: double                  │
+├──────────────────────────────────┤
+│ + getters() / setters()          │
+└──────────────────────────────────┘
+```
+
+### Step 2: Restaurant (Contains MenuItem)
+
+```
+┌──────────────────────────────────┐
+│          <<model>>               │
+│          Restaurant              │
+├──────────────────────────────────┤
+│ - id: int (auto-increment)       │
+│ - name: String                   │
+│ - address: String                │
+│ - menuItems: List<MenuItem>      │
+├──────────────────────────────────┤
+│ + getters() / setters()          │
+└──────────────────────────────────┘
+       ◆ (composition) 1 ──── * MenuItem
+```
+
+> **Relationship:** Restaurant HAS-A MenuItem (Composition) — MenuItem cannot exist without Restaurant.
+
+### Step 3: RestaurantManager (Singleton)
+
+```
+┌──────────────────────────────────┐
+│       RestaurantManager          │
+│         <<singleton>>            │
+├──────────────────────────────────┤
+│ - instance: RestaurantManager    │
+│ - restaurants: List<Restaurant>  │
+├──────────────────────────────────┤
+│ - RestaurantManager() (private)  │
+│ + getInstance(): RestaurantManager│
+│ + addRestaurant(Restaurant)      │
+│ + searchByLocation(String)       │
+│   : List<Restaurant>             │
+└──────────────────────────────────┘
+       ◇ (aggregation) 1 ──── * Restaurant
+```
+
+> **Why Singleton?** Single source of truth for all restaurants. Multiple instances would mean inconsistent lists.
+
+### Step 4: User + Cart + Order (Chain)
+
+```
+┌─────────────────────┐       ┌─────────────────────┐
+│       User          │       │       Cart          │
+│   <<model>>         │       │   <<model>>         │
+├─────────────────────┤       ├─────────────────────┤
+│ - id: int           │       │ - restaurant: Rest. │
+│ - name: String      │       │ - items: List<MI>   │
+│ - address: String   │       │ - total: double     │
+│ - cart: Cart        │       ├─────────────────────┤
+├─────────────────────┤       │ + addItem(MenuItem) │
+│ + getters/setters   │       │ + getTotalCost()    │
+└─────────────────────┘       │ + isEmpty()         │
+      ◆ 1 ──── 1 Cart         │ + clear()           │
+                              └─────────────────────┘
+                                    ▲
+                                    │ has-a (1)
+                                    │
+                              ┌─────┴─────┐
+                              │Restaurant │
+                              └───────────┘
+```
+
+> **Relationships:**
+> - User ◇◆ Cart (Composition, 1:1)
+> - Cart ◇── Restaurant (Simple Association, 1:1)
+> - Cart ◇── MenuItem (Aggregation, 1:*)
+
+### Step 5: Order Hierarchy
+
+```
+                 ┌────────────────────────┐
+                 │   <<abstract>>         │
+                 │       Order            │
+                 ├────────────────────────┤
+                 │ - id: int              │
+                 │ - user: User           │
+                 │ - restaurant: Rest.    │
+                 │ - items: List<MI>      │
+                 │ - paymentStrategy      │
+                 │ - total: double        │
+                 │ - scheduled: String    │
+                 ├────────────────────────┤
+                 │ + processPayment()     │
+                 │ + getType(): String = 0│
+                 └───────────┬────────────┘
+                             △
+              ┌──────────────┴──────────────┐
+              │                              │
+     ┌────────┴────────┐             ┌───────┴─────────┐
+     │  DeliveryOrder  │             │   PickupOrder   │
+     ├─────────────────┤             ├─────────────────┤
+     │ - userAddress   │             │ - restAddress   │
+     ├─────────────────┤             ├─────────────────┤
+     │ + getType():    │             │ + getType():    │
+     │   "DELIVERY"    │             │   "PICKUP"      │
+     └─────────────────┘             └─────────────────┘
+```
+
+### Step 6: Order Factory (Factory Method Pattern)
+
+```
+              ┌────────────────────────────┐
+              │   <<interface>>            │
+              │     OrderFactory           │
+              ├────────────────────────────┤
+              │ + createOrder(...): Order  │
+              └─────────────┬──────────────┘
+                            △
+              ┌─────────────┴───────────────┐
+              │                              │
+     ┌────────┴────────┐             ┌───────┴──────────┐
+     │   NowOrder      │             │  ScheduledOrder  │
+     │   Factory       │             │    Factory       │
+     ├─────────────────┤             ├──────────────────┤
+     │ + createOrder() │             │ + createOrder()  │
+     └─────────────────┘             └──────────────────┘
+              │                              │
+              │ creates                      │ creates
+              ▼                              ▼
+         DeliveryOrder                  DeliveryOrder
+         PickupOrder                    PickupOrder
+```
+
+### Step 7: Payment Strategy (Strategy Pattern)
+
+```
+              ┌────────────────────────────┐
+              │   <<abstract>>             │
+              │    PaymentStrategy         │
+              ├────────────────────────────┤
+              │ + pay(double): void = 0    │
+              └─────────────┬──────────────┘
+                            △
+              ┌─────────────┼─────────────┐
+              │             │             │
+     ┌────────┴────┐ ┌──────┴─────┐ ┌─────┴──────┐
+     │ UPIPayment  │ │CreditCard  │ │NetBanking  │
+     │             │ │ Payment    │ │ Payment    │
+     └─────────────┘ └────────────┘ └────────────┘
+```
+
+### Step 8: Order Manager (Singleton)
+
+```
+┌──────────────────────────────────┐
+│        OrderManager              │
+│         <<singleton>>            │
+├──────────────────────────────────┤
+│ - instance: OrderManager         │
+│ - orders: List<Order>            │
+├──────────────────────────────────┤
+│ - OrderManager() (private)       │
+│ + getInstance(): OrderManager    │
+│ + addOrder(Order)                │
+│ + listOrders()                   │
+└──────────────────────────────────┘
+       ◇ (aggregation) 1 ──── * Order
+```
+
+### Step 9: Notification Service
+
+```
+┌──────────────────────────────────┐
+│      NotificationService         │
+├──────────────────────────────────┤
+│ + notify(Order): void            │
+└──────────────────────────────────┘
+       ◇ (has-a) ──── Order
+```
+
+### Step 10: Tomato Orchestrator (Single Point of Contact)
+
+```
+┌──────────────────────────────────────────────────┐
+│                TomatoApp                          │
+│            (Orchestrator Class)                   │
+├──────────────────────────────────────────────────┤
+│ - restaurantManager: RestaurantManager            │
+│ - orderManager: OrderManager                      │
+├──────────────────────────────────────────────────┤
+│ + TomatoApp()                                     │
+│ + searchRestaurant(location): List<Restaurant>    │
+│ + selectRestaurant(user, restaurant)              │
+│ + addToCart(user, itemCode)                       │
+│ + checkoutNow(user, paymentStrategy, orderType)   │
+│ + checkoutScheduled(...)                          │
+│ + payForOrder(user, order)                        │
+│ + printUserCart(user)                             │
+└──────────────────────────────────────────────────┘
+```
+
+> **Why TomatoApp?** Single point of contact for the client (front-end). It orchestrates all other objects.
+
+---
+
+## 5. Complete UML Diagram (Clean View)
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                         TOMATO APP (Orchestrator)                    │
+│                                                                       │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────────┐          │
+│  │   User      │    │   Cart      │    │   Order         │          │
+│  │             │───◆│             │    │  <<abstract>>   │          │
+│  │             │    │             │    │                 │          │
+│  └─────────────┘    └──────┬──────┘    └────────┬────────┘          │
+│                            │                    △                    │
+│                            │                    │                    │
+│                     ┌──────┴──────┐    ┌────────┴────────┐          │
+│                     │ Restaurant  │    │                 │          │
+│                     │             │    │  DeliveryOrder  │          │
+│                     └──────┬──────┘    │  PickupOrder    │          │
+│                            │           └─────────────────┘          │
+│                            │                                         │
+│                     ┌──────┴──────┐    ┌─────────────────┐          │
+│                     │  MenuItem   │    │ PaymentStrategy │          │
+│                     │             │    │  <<abstract>>   │          │
+│                     └─────────────┘    └────────┬────────┘          │
+│                                                 △                    │
+│                                    ┌────────────┼────────────┐       │
+│                                    │            │            │       │
+│                              ┌─────┴────┐ ┌─────┴─────┐ ┌────┴─────┐│
+│                              │  UPI     │ │CreditCard │ │NetBanking││
+│                              └──────────┘ └───────────┘ └──────────┘│
+│                                                                       │
+│  ┌──────────────────────┐   ┌──────────────────────┐                │
+│  │ RestaurantManager    │   │  OrderManager         │                │
+│  │ <<singleton>>        │   │  <<singleton>>        │                │
+│  └──────────────────────┘   └──────────────────────┘                │
+│                                                                       │
+│  ┌──────────────────────┐   ┌──────────────────────┐                │
+│  │ NotificationService  │   │   OrderFactory        │                │
+│  │                      │   │  <<interface>>        │                │
+│  └──────────────────────┘   └──────────────────────┘                │
+│                                                                       │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 6. Design Patterns Applied
+
+| Pattern | Where Used | Why |
+|---------|-----------|-----|
+| **Singleton** | RestaurantManager, OrderManager | Single source of truth for managers |
+| **Strategy** | PaymentStrategy | Interchangeable payment algorithms |
+| **Factory Method** | OrderFactory → NowOrderFactory, ScheduledOrderFactory | Separate object creation logic |
+| **Composition** | User-Cart, Restaurant-MenuItem | Strong ownership |
+| **Aggregation** | RestaurantManager-Restaurant, OrderManager-Order | Container-object relationship |
+
+---
+
+## 7. Key Code Examples
+
+### 7.1 Restaurant Model
+
+```cpp
+class Restaurant {
+private:
+    static int nextRestaurantId;
+    int restaurantId;
+    string name;
+    string location;
+    vector<MenuItem> menuItems;
+
+public:
+    Restaurant(string name, string location) 
+        : name(name), location(location) {
+        restaurantId = ++nextRestaurantId;
+    }
+    
+    string getName() { return name; }
+    string getLocation() { return location; }
+    vector<MenuItem>& getMenuItems() { return menuItems; }
+    
+    void addMenuItem(MenuItem item) {
+        menuItems.push_back(item);
+    }
+};
+
+int Restaurant::nextRestaurantId = 0;
+```
+
+### 7.2 RestaurantManager (Singleton)
+
+```cpp
+class RestaurantManager {
+private:
+    static RestaurantManager* instance;
+    vector<Restaurant*> restaurants;
+    
+    RestaurantManager() {}
+    
+public:
+    RestaurantManager(const RestaurantManager&) = delete;
+    RestaurantManager& operator=(const RestaurantManager&) = delete;
+    
+    static RestaurantManager* getInstance() {
+        if (instance == nullptr) {
+            instance = new RestaurantManager();
+        }
+        return instance;
+    }
+    
+    void addRestaurant(Restaurant* r) {
+        restaurants.push_back(r);
+    }
+    
+    vector<Restaurant*> searchByLocation(string loc) {
+        vector<Restaurant*> result;
+        for (auto r : restaurants) {
+            if (r->getLocation() == loc) {
+                result.push_back(r);
+            }
+        }
+        return result;
+    }
+};
+
+RestaurantManager* RestaurantManager::instance = nullptr;
+```
+
+### 7.3 Cart
+
+```cpp
+class Cart {
+private:
+    Restaurant* restaurant;
+    vector<MenuItem> items;
+
+public:
+    Cart() : restaurant(nullptr) {}
+    
+    void addItem(MenuItem item) {
+        if (restaurant == nullptr) {
+            cout << "Select a restaurant first!\n";
+            return;
+        }
+        items.push_back(item);
+    }
+    
+    void setRestaurant(Restaurant* r) { restaurant = r; }
+    Restaurant* getRestaurant() { return restaurant; }
+    vector<MenuItem>& getItems() { return items; }
+    
+    bool isEmpty() { return items.empty(); }
+    
+    double getTotalCost() {
+        double total = 0;
+        for (auto& item : items) total += item.getPrice();
+        return total;
+    }
+    
+    void clear() {
+        items.clear();
+        restaurant = nullptr;
+    }
+};
+```
+
+### 7.4 Order (Abstract)
+
+```cpp
+class Order {
+protected:
+    static int nextOrderId;
+    int orderId;
+    User* user;
+    Restaurant* restaurant;
+    vector<MenuItem> items;
+    PaymentStrategy* paymentStrategy;
+    double total;
+    string scheduled;
+
+public:
+    Order(User* u, Restaurant* r, vector<MenuItem> items,
+          PaymentStrategy* ps, double total, string scheduled)
+        : user(u), restaurant(r), items(items),
+          paymentStrategy(ps), total(total), scheduled(scheduled) {
+        orderId = ++nextOrderId;
+    }
+    
+    virtual ~Order() {}
+    
+    bool processPayment() {
+        if (paymentStrategy) {
+            paymentStrategy->pay(total);
+            return true;
+        }
+        cout << "Please choose payment mode first!\n";
+        return false;
+    }
+    
+    virtual string getType() = 0;  // Pure virtual
+    
+    // getters/setters...
+};
+
+int Order::nextOrderId = 0;
+
+// Concrete Orders
+class DeliveryOrder : public Order {
+    string userAddress;
+public:
+    DeliveryOrder(User* u, Restaurant* r, vector<MenuItem> items,
+                  PaymentStrategy* ps, double total, string scheduled)
+        : Order(u, r, items, ps, total, scheduled), userAddress("") {}
+    
+    string getType() override { return "DELIVERY"; }
+    void setUserAddress(string addr) { userAddress = addr; }
+};
+
+class PickupOrder : public Order {
+    string restaurantAddress;
+public:
+    PickupOrder(...) : Order(...) {}
+    
+    string getType() override { return "PICKUP"; }
+    void setRestaurantAddress(string addr) { restaurantAddress = addr; }
+};
+```
+
+### 7.5 Order Factory (Factory Method)
+
+```cpp
+class OrderFactory {
+public:
+    virtual Order* createOrder(User* user, Cart* cart,
+                               Restaurant* restaurant, vector<MenuItem> menuItems,
+                               PaymentStrategy* paymentStrategy,
+                               double totalCost, string orderType) = 0;
+    virtual ~OrderFactory() {}
+};
+
+class NowOrderFactory : public OrderFactory {
+public:
+    Order* createOrder(User* user, Cart* cart, Restaurant* restaurant,
+                       vector<MenuItem> menuItems,
+                       PaymentStrategy* paymentStrategy,
+                       double totalCost, string orderType) override {
+        Order* order = nullptr;
+        if (orderType == "DELIVERY") {
+            auto* dOrder = new DeliveryOrder(user, restaurant, menuItems,
+                                            paymentStrategy, totalCost,
+                                            TimeUtils::getCurrentTime());
+            dOrder->setUserAddress(user->getAddress());
+            order = dOrder;
+        } else {
+            auto* pOrder = new PickupOrder(user, restaurant, menuItems,
+                                          paymentStrategy, totalCost,
+                                          TimeUtils::getCurrentTime());
+            pOrder->setRestaurantAddress(restaurant->getLocation());
+            order = pOrder;
+        }
+        return order;
+    }
+};
+
+class ScheduledOrderFactory : public OrderFactory {
+    string scheduleTime;
+public:
+    ScheduledOrderFactory(string time) : scheduleTime(time) {}
+    
+    Order* createOrder(...) override {
+        // Similar to above but uses scheduleTime
+    }
+};
+```
+
+### 7.6 Payment Strategy
+
+```cpp
+class PaymentStrategy {
+public:
+    virtual void pay(double amount) = 0;
+    virtual ~PaymentStrategy() {}
+};
+
+class UPIPayment : public PaymentStrategy {
+    string mobileNumber;
+public:
+    UPIPayment(string num) : mobileNumber(num) {}
+    
+    void pay(double amount) override {
+        cout << "Paid " << amount << " using UPI (" << mobileNumber << ")\n";
+    }
+};
+
+class CreditCardPayment : public PaymentStrategy {
+    string cardNumber;
+public:
+    CreditCardPayment(string num) : cardNumber(num) {}
+    
+    void pay(double amount) override {
+        cout << "Paid " << amount << " using Credit Card\n";
+    }
+};
+```
+
+### 7.7 TomatoApp (Orchestrator)
+
+```cpp
+class TomatoApp {
+private:
+    RestaurantManager* restaurantManager;
+    OrderManager* orderManager;
+    
+    void initializeRestaurants() {
+        // Create sample restaurants
+        auto* r1 = new Restaurant("Bikaner", "Delhi");
+        r1->addMenuItem(MenuItem("CH1", "Chole Bhature", 120));
+        r1->addMenuItem(MenuItem("SM1", "Samosa", 15));
+        
+        auto* r2 = new Restaurant("Haldiram", "Kolkata");
+        // ... add menu items
+        
+        restaurantManager->addRestaurant(r1);
+        restaurantManager->addRestaurant(r2);
+        restaurantManager->addRestaurant(r3);
+    }
+    
+public:
+    TomatoApp() {
+        restaurantManager = RestaurantManager::getInstance();
+        orderManager = OrderManager::getInstance();
+        initializeRestaurants();
+    }
+    
+    vector<Restaurant*> searchRestaurant(string location) {
+        return restaurantManager->searchByLocation(location);
+    }
+    
+    void selectRestaurant(User* user, Restaurant* restaurant) {
+        Cart* cart = user->getCart();
+        cart->setRestaurant(restaurant);
+    }
+    
+    void addToCart(User* user, string itemCode) {
+        Restaurant* restaurant = user->getCart()->getRestaurant();
+        if (!restaurant) {
+            cout << "Please select a restaurant first.\n";
+            return;
+        }
+        for (auto& item : restaurant->getMenuItems()) {
+            if (item.getCode() == itemCode) {
+                user->getCart()->addItem(item);
+                break;
+            }
+        }
+    }
+    
+    Order* checkoutNow(User* user, string orderType, PaymentStrategy* ps) {
+        return checkout(user, orderType, ps,
+                       new NowOrderFactory());
+    }
+    
+    Order* checkoutScheduled(User* user, string orderType, PaymentStrategy* ps,
+                            string scheduleTime) {
+        return checkout(user, orderType, ps,
+                       new ScheduledOrderFactory(scheduleTime));
+    }
+    
+    Order* checkout(User* user, string orderType, PaymentStrategy* ps,
+                   OrderFactory* factory) {
+        Cart* cart = user->getCart();
+        if (cart->isEmpty()) {
+            cout << "Cart is empty. Cannot checkout.\n";
+            return nullptr;
+        }
+        
+        Restaurant* orderedRestaurant = cart->getRestaurant();
+        vector<MenuItem> itemsOrdered = cart->getItems();
+        double totalCost = cart->getTotalCost();
+        
+        Order* order = factory->createOrder(user, cart, orderedRestaurant,
+                                           itemsOrdered, ps, totalCost,
+                                           orderType);
+        orderManager->addOrder(order);
+        return order;
+    }
+    
+    bool payForOrder(User* user, Order* order) {
+        bool success = order->processPayment();
+        if (success) {
+            NotificationService::notify(order);
+            user->getCart()->clear();
+        }
+        return success;
+    }
+};
+```
+
+---
+
+## 8. SOLID Principles Applied
+
+| Principle | How Applied |
+|-----------|-------------|
+| **SRP** | Each class has one job (Cart manages items, Order manages order, Manager manages lists) |
+| **OCP** | New order types = new Order subclass; new payment = new PaymentStrategy |
+| **LSP** | DeliveryOrder and PickupOrder substitutable for Order |
+| **ISP** | OrderFactory interface only has createOrder(); PaymentStrategy only has pay() |
+| **DIP** | TomatoApp depends on abstract OrderFactory, not concrete factories |
+
+### Trade-off: Principle of Least Knowledge
+
+The **TomatoApp orchestrator** deliberately breaks SRP and Law of Demeter because:
+- It acts as a **single point of contact** for the client
+- The client (front-end) shouldn't know about all internal objects
+
+> **Key Lesson:** SOLID principles are **guidelines, not laws**. Sometimes a trade-off is necessary.
+
+---
+
+## 9. Main Flow Code
+
+```cpp
+int main() {
+    // 1. Initialize the app
+    TomatoApp* tomato = new TomatoApp();
+    
+    // 2. Create a user
+    User* user = new User(1001, "Aditya", "Delhi");
+    cout << "User: " << user->getName() << " is active.\n";
+    
+    // 3. Search restaurants by location
+    auto restaurants = tomato->searchRestaurant("Delhi");
+    if (restaurants.empty()) {
+        cout << "No restaurants found.\n";
+        return 0;
+    }
+    cout << "Restaurants found:\n";
+    for (auto r : restaurants)
+        cout << r->getName() << " (" << r->getLocation() << ")\n";
+    
+    // 4. Select first restaurant (simulating front-end choice)
+    Restaurant* selected = restaurants[0];
+    tomato->selectRestaurant(user, selected);
+    cout << "Selected: " << selected->getName() << "\n";
+    
+    // 5. Add items to cart
+    tomato->addToCart(user, "CH1");  // Chole Bhature
+    tomato->addToCart(user, "SM1");  // Samosa
+    tomato->printUserCart(user);
+    
+    // 6. Checkout with UPI payment
+    PaymentStrategy* payment = new UPIPayment("9876543210");
+    Order* order = tomato->checkoutNow(user, "DELIVERY", payment);
+    
+    // 7. Pay for order
+    if (order) {
+        tomato->payForOrder(user, order);
+    }
+    
+    // 8. Cleanup
+    delete user;
+    delete payment;
+    delete tomato;
+    return 0;
+}
+```
+
+**Sample Output:**
+```
+User: Aditya is active.
+Restaurants found:
+Bikaner (Delhi)
+
+Selected: Bikaner
+Cart for Aditya:
+Chole Bhature - 120
+Samosa - 15
+Total: 135
+Paid 135 using UPI (9876543210)
+Notification sent for Order ID: 1
+Order Type: DELIVERY
+Restaurant: Bikaner
+Total: 135
+Scheduled: 2024-01-15 14:30:00
+```
+
+---
+
+## 10. Further Extensions
+
+### Extension 1: Payment Strategy Factory
+
+Instead of deciding payment strategy in `main()`, use a factory:
+
+```cpp
+class PaymentStrategyFactory {
+public:
+    static PaymentStrategy* createStrategy(string type) {
+        if (type == "UPI") return new UPIPayment("...");
+        if (type == "CARD") return new CreditCardPayment("...");
+        return nullptr;
+    }
+};
+```
+
+### Extension 2: Notification Service Hierarchy
+
+```
+              ┌────────────────────────────┐
+              │  <<abstract>>              │
+              │  NotificationService       │
+              ├────────────────────────────┤
+              │ + notify(Order) = 0        │
+              └─────────────┬──────────────┘
+                            △
+              ┌─────────────┼──────────────┐
+              │             │              │
+     ┌────────┴────┐ ┌──────┴─────┐ ┌─────┴──────┐
+     │PushNotif    │ │EmailNotif  │ │WhatsApp    │
+     │Service      │ │Service     │ │Notif       │
+     └─────────────┘ └────────────┘ └────────────┘
+```
+
+### Extension 3: Decentralized Architecture (Modern Frameworks)
+
+Instead of one `TomatoApp` orchestrator:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        API LAYER                            │
+│  /search-restaurant  /add-to-cart  /checkout  /pay          │
+└──────────────────────┬──────────────────────────────────────┘
+                       │
+┌──────────────────────┴──────────────────────────────────────┐
+│                     SERVICE LAYER                            │
+│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐         │
+│  │RestaurantSvc │ │  CartSvc     │ │  OrderSvc    │         │
+│  └──────────────┘ └──────────────┘ └──────────────┘         │
+│  ┌──────────────┐ ┌──────────────┐                          │
+│  │ PaymentSvc   │ │ Notification │                          │
+│  └──────────────┘ └──────────────┘                          │
+└──────────────────────────────────────────────────────────────┘
+```
+
+This is how **Spring Boot / Django** structure applications — separate controllers, services, and repositories.
+
+---
+
+## 11. Key Takeaways
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    LLD CASE STUDY — TAKEAWAYS                       │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   ✅ ALWAYS gather requirements with counter-questions              │
+│   ✅ Discuss happy flow before designing                            │
+│   ✅ Use Bottom-Up approach for LLD problems                        │
+│   ✅ Draw UML before code                                           │
+│   ✅ Apply design patterns appropriately (don't force them)         │
+│   ✅ Managers are Singletons (single source of truth)               │
+│   ✅ Use composition over inheritance wherever possible             │
+│   ✅ Single point of contact (orchestrator) for client              │
+│   ✅ Know when to break principles (trade-offs)                     │
+│   ✅ Design patterns used:                                          │
+│      • Singleton (Managers)                                         │
+│      • Strategy (Payment)                                           │
+│      • Factory Method (Order creation)                              │
+│      • Composition/Aggregation (Relationships)                      │
+│                                                                      │
+│   Project Structure (like real apps):                               │
+│   ├── models/      (User, Cart, Order, Restaurant, MenuItem)        │
+│   ├── managers/    (RestaurantManager, OrderManager)                │
+│   ├── factories/   (OrderFactory, NowOrderFactory, ...)             │
+│   ├── strategies/  (PaymentStrategy, UPIPayment, ...)               │
+│   ├── services/    (NotificationService)                            │
+│   └── utils/       (TimeUtils)                                      │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Interview Wisdom
+
+> **"The interviewer is not your interviewer — they are your friend/manager who wants to build the application WITH you."**
+
+- LLD questions are **subjective** — discuss and iterate
+- There's no single "right answer" — trade-offs matter
+- **Working code** (even structural) is expected at the end
+- 1-hour interview can only cover so much — pick the most important parts
+
+---
+
+## 12. Observer Design Pattern Explained (28:30)
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
