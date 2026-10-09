@@ -7875,4 +7875,568 @@ This is how **Spring Boot / Django** structure applications — separate control
 
 ## 12. Observer Design Pattern Explained (28:30)
 
+This lecture covers the **Observer Design Pattern** — a behavioral pattern that defines a **one-to-many relationship** between objects, so when one object changes state, all its dependents are notified automatically. The classic real-world analogy is **YouTube subscriptions**.
+
+---
+
+## 1. What is Observer Pattern?
+
+> **"Define a one-to-many relationship between objects so that when one object changes state, all of its dependents are notified and updated automatically."**
+
+### Real-World Analogy: YouTube
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    YOUTUBE SUBSCRIPTION MODEL                       │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   YouTube Channel              Subscribers                          │
+│   (Observable)                 (Observers)                          │
+│                                                                      │
+│   ┌──────────────┐     ┌──────────────────┐                         │
+│   │   Channel    │────▶│  Subscriber 1    │                         │
+│   │              │     └──────────────────┘                         │
+│   │  Uploads new │────▶│  Subscriber 2    │                         │
+│   │    video     │     └──────────────────┘                         │
+│   │              │────▶│  Subscriber 3    │                         │
+│   │              │     └──────────────────┘                         │
+│   │              │────▶│  Subscriber N    │                         │
+│   └──────────────┘     └──────────────────┘                         │
+│                                                                      │
+│   When channel uploads → ALL subscribers get notified               │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Core Terminology
+
+| Term | Meaning | YouTube Example |
+|------|---------|-----------------|
+| **Observable** (Subject) | Object being watched | YouTube Channel |
+| **Observer** | Object doing the watching | Subscriber |
+| **One-to-Many** | One observable → many observers | One channel → many subscribers |
+
+---
+
+## 2. The Problem: Polling vs Pushing
+
+### ❌ Polling Technique (Bad)
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    POLLING (BAD APPROACH)                           │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   Observer repeatedly asks Observable:                             │
+│                                                                      │
+│   Observer: "Did your value change?"  ────▶                        │
+│   Observable: "No."                    ◀────                        │
+│   Observer: "Did your value change?"  ────▶                        │
+│   Observable: "No."                    ◀────                        │
+│   Observer: "Did your value change?"  ────▶                        │
+│   Observable: "No."                    ◀────                        │
+│   Observer: "Did your value change?"  ────▶                        │
+│   Observable: "Yes!"                   ◀────                        │
+│                                                                      │
+│   Problems:                                                         │
+│   • Wasteful: constant requests                                     │
+│   • Time-consuming                                                  │
+│   • Difficult to pick polling frequency                             │
+│   • Never know the exact right moment                               │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### ✅ Pushing Technique (Good)
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    PUSHING (GOOD APPROACH)                          │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   Observable actively notifies Observers:                          │
+│                                                                      │
+│   Observable state changes →                                         │
+│   Observable pushes notification to ALL observers                    │
+│                                                                      │
+│   ┌──────────────┐                                                  │
+│   │  Observable  │──▶ "My value changed!"                          │
+│   └──────────────┘     ├──▶ Observer 1                              │
+│                        ├──▶ Observer 2                              │
+│                        ├──▶ Observer 3                              │
+│                        └──▶ Observer N                              │
+│                                                                      │
+│   Benefits:                                                         │
+│   • Efficient — no wasted requests                                 │
+│   • Real-time — immediate notification                             │
+│   • Clean — no polling logic needed                                │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 3. UML Design
+
+### 3.1 Naming Convention: `I` Prefix for Interfaces
+
+The lecture introduces a **standard naming convention**:
+- Pure abstract classes (all virtual methods) → prefix with `I` (e.g., `IObservable`, `IObserver`)
+- This distinguishes interfaces from concrete classes
+
+### 3.2 Generic UML Diagram
+
+```
+                    ┌──────────────────────────────┐
+                    │     <<interface>>            │
+                    │      IObservable             │
+                    ├──────────────────────────────┤
+                    │ + add(IObserver): void       │
+                    │ + remove(IObserver): void    │
+                    │ + notify(): void             │
+                    └──────────────┬───────────────┘
+                                   △
+                                   │ (implements)
+                    ┌──────────────┴───────────────┐
+                    │    ConcreteObservable        │
+                    ├──────────────────────────────┤
+                    │ - observers: List<IObserver> │
+                    ├──────────────────────────────┤
+                    │ + add(IObserver)             │
+                    │ + remove(IObserver)          │
+                    │ + notify()                   │
+                    │ + getValue(): ...            │
+                    └──────────────────────────────┘
+
+                    ┌──────────────────────────────┐
+                    │     <<interface>>            │
+                    │      IObserver               │
+                    ├──────────────────────────────┤
+                    │ + update(): void             │
+                    └──────────────┬───────────────┘
+                                   △
+                                   │ (implements)
+                    ┌──────────────┴───────────────┐
+                    │    ConcreteObserver          │
+                    ├──────────────────────────────┤
+                    │ - observable: IObservable*   │
+                    ├──────────────────────────────┤
+                    │ + update()                   │
+                    └──────────────────────────────┘
+                                    │ (has-a)
+                                    ▼
+                              IObservable
+```
+
+### 3.3 Key Methods
+
+| Interface | Method | Purpose |
+|-----------|--------|---------|
+| **IObservable** | `add(IObserver)` | Subscribe an observer |
+| **IObservable** | `remove(IObserver)` | Unsubscribe an observer |
+| **IObservable** | `notify()` | Notify all observers of state change |
+| **IObserver** | `update()` | Called by observable when state changes |
+
+### 3.4 The "Concrete-to-Concrete" Relationship
+
+**Unique to Observer Pattern:** Unlike most patterns where relationships are between abstractions, Observer Pattern uses **concrete observer → concrete observable** relationship. This enables the observer to read the actual value from the observable.
+
+---
+
+## 4. Code Implementation: YouTube Example
+
+### 4.1 Interfaces
+
+```cpp
+#include <iostream>
+#include <vector>
+#include <string>
+#include <algorithm>
+using namespace std;
+
+// ============ INTERFACES ============
+class ISubscriber {
+public:
+    virtual void update() = 0;
+    virtual ~ISubscriber() {}
+};
+
+class IChannel {
+public:
+    virtual void subscribe(ISubscriber* sub) = 0;
+    virtual void unsubscribe(ISubscriber* sub) = 0;
+    virtual void notifySubscribers() = 0;
+    virtual ~IChannel() {}
+};
+```
+
+### 4.2 Concrete Channel (Observable)
+
+```cpp
+class Channel : public IChannel {
+private:
+    vector<ISubscriber*> subscribers;
+    string name;
+    string latestVideo;
+
+public:
+    Channel(string name) : name(name) {}
+
+    void subscribe(ISubscriber* sub) override {
+        // Avoid duplicate subscriptions
+        if (find(subscribers.begin(), subscribers.end(), sub) 
+            == subscribers.end()) {
+            subscribers.push_back(sub);
+        }
+    }
+
+    void unsubscribe(ISubscriber* sub) override {
+        subscribers.erase(
+            remove(subscribers.begin(), subscribers.end(), sub),
+            subscribers.end()
+        );
+    }
+
+    void notifySubscribers() override {
+        for (auto* sub : subscribers) {
+            sub->update();
+        }
+    }
+
+    void uploadVideo(string title) {
+        latestVideo = title;
+        cout << name << " uploaded: " << title << "\n";
+        notifySubscribers();
+    }
+
+    string getVideoData() {
+        return "Check out our new video: " + latestVideo;
+    }
+};
+```
+
+### 4.3 Concrete Subscriber (Observer)
+
+```cpp
+class Subscriber : public ISubscriber {
+private:
+    string name;
+    Channel* channel;  // Has-a concrete observable
+
+public:
+    Subscriber(string name, Channel* ch) : name(name), channel(ch) {}
+
+    void update() override {
+        cout << "Hey " << name << ", "
+             << channel->getVideoData() << "\n";
+    }
+};
+```
+
+### 4.4 Main (Client)
+
+```cpp
+int main() {
+    // Create channel (Observable)
+    Channel* channel = new Channel("CodeArmy");
+
+    // Create subscribers (Observers)
+    Subscriber* varun = new Subscriber("Varun", channel);
+    Subscriber* tarun = new Subscriber("Tarun", channel);
+
+    // Subscribe
+    channel->subscribe(varun);
+    channel->subscribe(tarun);
+
+    // Upload video → both get notified
+    channel->uploadVideo("Observer Pattern Tutorial");
+
+    // Unsubscribe Varun
+    channel->unsubscribe(varun);
+
+    // Upload another video → only Tarun gets notified
+    channel->uploadVideo("Decorator Pattern Tutorial");
+
+    // Cleanup
+    delete varun;
+    delete tarun;
+    delete channel;
+    return 0;
+}
+```
+
+### 4.5 Output
+
+```
+CodeArmy uploaded: Observer Pattern Tutorial
+Hey Varun, Check out our new video: Observer Pattern Tutorial
+Hey Tarun, Check out our new video: Observer Pattern Tutorial
+
+CodeArmy uploaded: Decorator Pattern Tutorial
+Hey Tarun, Check out our new video: Decorator Pattern Tutorial
+```
+
+**Observation:** After Varun unsubscribes, only Tarun receives the notification.
+
+---
+
+## 5. Complete UML for YouTube Example
+
+```
+                    ┌──────────────────────────────┐
+                    │      <<interface>>           │
+                    │       IChannel               │
+                    ├──────────────────────────────┤
+                    │ + subscribe(ISubscriber*)    │
+                    │ + unsubscribe(ISubscriber*)  │
+                    │ + notifySubscribers()        │
+                    └──────────────┬───────────────┘
+                                   △
+                                   │ implements
+                    ┌──────────────┴───────────────┐
+                    │         Channel              │
+                    ├──────────────────────────────┤
+                    │ - subscribers: List<ISub*>   │
+                    │ - name: string               │
+                    │ - latestVideo: string        │
+                    ├──────────────────────────────┤
+                    │ + subscribe()                │
+                    │ + unsubscribe()              │
+                    │ + notifySubscribers()        │
+                    │ + uploadVideo(title)         │
+                    │ + getVideoData(): string     │
+                    └──────────────────────────────┘
+                                    △
+                                    │ (has-a)
+                                    │ 1..*
+                    ┌───────────────┴──────────────┐
+                    │                              │
+                    │  ┌──────────────────────┐   │
+                    │  │  <<interface>>       │   │
+                    │  │   ISubscriber        │   │
+                    │  ├──────────────────────┤   │
+                    │  │ + update()           │   │
+                    │  └──────────┬───────────┘   │
+                    │             △                │
+                    │             │ implements     │
+                    │  ┌──────────┴───────────┐   │
+                    │  │    Subscriber        │   │
+                    │  ├──────────────────────┤   │
+                    │  │ - name: string       │   │
+                    │  │ - channel: Channel*  │   │
+                    │  ├──────────────────────┤   │
+                    │  │ + update()           │   │
+                    │  └──────────────────────┘   │
+                    │             │                │
+                    │             │ has-a          │
+                    │             ▼                │
+                    │         Channel              │
+                    └──────────────────────────────┘
+```
+
+---
+
+## 6. Observer Pattern Breaks SRP (Trade-off)
+
+### Why It Breaks SRP
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│           CONCRETE CHANNEL — TWO RESPONSIBILITIES                   │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   Responsibility 1: OBSERVER PATTERN LOGIC                          │
+│   • subscribe()                                                     │
+│   • unsubscribe()                                                   │
+│   • notifySubscribers()                                             │
+│                                                                      │
+│   Responsibility 2: BUSINESS LOGIC                                  │
+│   • uploadVideo()                                                   │
+│   • getVideoData()                                                  │
+│                                                                      │
+│   Two reasons to change → Violates Single Responsibility            │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Why This Trade-off Is Acceptable
+
+The lecture explains:
+
+> **"The Observer pattern logic NEVER changes. Only the business logic changes."**
+
+- `subscribe()`, `unsubscribe()`, `notifySubscribers()` → **Static, never change**
+- `uploadVideo()`, `getVideoData()` → **Business logic, can change**
+
+This aligns with the **fundamental design pattern idea**: separate what changes from what doesn't.
+
+### How to Fix It (If You Want to Be Strict)
+
+Extract the observer pattern logic into a base abstract class:
+
+```cpp
+class Observable {
+protected:
+    vector<ISubscriber*> subscribers;
+public:
+    void subscribe(ISubscriber* sub) { /* ... */ }
+    void unsubscribe(ISubscriber* sub) { /* ... */ }
+    void notifySubscribers() { /* ... */ }
+};
+
+class Channel : public Observable {
+    string name;
+    string latestVideo;
+public:
+    void uploadVideo(string title) { /* ... */ }
+    string getVideoData() { /* ... */ }
+};
+```
+
+**But:** The lecture recommends keeping it simple — standard Observer pattern UML diagrams also break SRP.
+
+---
+
+## 7. Real-World Applications
+
+### Application 1: Notification Service
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    NOTIFICATION SERVICE                             │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   ┌──────────────────┐                                              │
+│   │ Notification     │                                              │
+│   │ Server           │────▶ Subscriber A (Email)                    │
+│   │ (Observable)     │────▶ Subscriber B (Push)                     │
+│   │                  │────▶ Subscriber C (SMS)                      │
+│   │ New notification │────▶ Subscriber D (WhatsApp)                 │
+│   └──────────────────┘                                              │
+│                                                                      │
+│   All subscribers get notified when a new notification arrives      │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Application 2: News Feed (Facebook/Instagram)
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    SOCIAL MEDIA FEED                                │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   User posts something → All followers' feeds get updated           │
+│                                                                      │
+│   ┌──────────────┐       ┌────────────┐                             │
+│   │ User A       │──────▶│ Follower 1 │                             │
+│   │ (posts)      │──────▶│ Follower 2 │                             │
+│   │              │──────▶│ Follower 3 │                             │
+│   └──────────────┘       └────────────┘                             │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Application 3: Event Handling (Frontend)
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    DOM EVENT LISTENERS                              │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   button.addEventListener('click', handler1);                       │
+│   button.addEventListener('click', handler2);                       │
+│   button.addEventListener('click', handler3);                       │
+│                                                                      │
+│   When button clicked → ALL handlers execute                        │
+│                                                                      │
+│   Internally, this is Observer Pattern!                             │
+│   button = Observable                                               │
+│   handler1/2/3 = Observers                                          │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 8. Benefits and Drawbacks
+
+### ✅ Benefits
+
+| Benefit | Description |
+|---------|-------------|
+| **Loose Coupling** | Observable doesn't need to know concrete observer classes |
+| **Dynamic Relationships** | Subscribe/unsubscribe at runtime |
+| **Broadcast Communication** | One change → many reactions |
+| **Open/Closed** | Add new observers without modifying observable |
+| **Efficient** | No polling, only push-based updates |
+
+### ❌ Drawbacks
+
+| Drawback | Description |
+|----------|-------------|
+| **SRP Violation** | Concrete observable handles both pattern + business logic |
+| **Memory Leaks** | If observers aren't removed, they stay referenced |
+| **Unexpected Updates** | Observers may be notified in unpredictable order |
+| **Debugging Complexity** | Tracing notification chains can be hard |
+
+---
+
+## 9. Key Takeaways
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                  OBSERVER PATTERN — SUMMARY                         │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   🎯 PURPOSE                                                        │
+│   Define a one-to-many relationship so that when one object        │
+│   changes state, all dependents are notified automatically         │
+│                                                                      │
+│   🧩 KEY COMPONENTS                                                 │
+│   • IObservable (Subject) — interface for being observed            │
+│   • IObserver — interface for observing                             │
+│   • ConcreteObservable — actual subject                             │
+│   • ConcreteObserver — actual observer                              │
+│                                                                      │
+│   🔑 KEY METHODS                                                    │
+│   • subscribe() / add()                                             │
+│   • unsubscribe() / remove()                                        │
+│   • notify() / notifySubscribers()                                  │
+│   • update()                                                        │
+│                                                                      │
+│   💡 CORE INSIGHT                                                   │
+│   Push-based notification (not pull-based polling)                  │
+│                                                                      │
+│   ⚠️ TRADE-OFF                                                      │
+│   Breaks SRP — but it's an accepted compromise                      │
+│   because pattern logic never changes                               │
+│                                                                      │
+│   🌍 REAL-WORLD USES                                                │
+│   • YouTube / Social media subscriptions                            │
+│   • Notification services                                           │
+│   • Event handling (DOM, GUI)                                       │
+│   • News feeds                                                      │
+│   • Stock market tickers                                            │
+│   • Message queues                                                  │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### The Golden Rule
+
+> **"When you need one object's changes to trigger reactions in many others, reach for the Observer Pattern."**
+
+### Interview Wisdom
+
+Observer Pattern is one of the **most useful behavioral patterns** and frequently appears in LLD interviews — especially in:
+- Notification system designs
+- Chat/messaging applications
+- Real-time feed designs
+- Event-driven architectures
+
+---
+
+## 13. Decorator Pattern Explained | Real-world use case + Code (29:19)
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
