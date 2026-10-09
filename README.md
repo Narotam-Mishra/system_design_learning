@@ -8439,4 +8439,726 @@ Observer Pattern is one of the **most useful behavioral patterns** and frequentl
 
 ## 13. Decorator Pattern Explained | Real-world use case + Code (29:19)
 
+This lecture covers the **Decorator Design Pattern** — a structural pattern that lets you attach additional responsibilities to an object **dynamically at runtime**, providing a flexible alternative to subclassing (inheritance).
+
+---
+
+## 1. What is Decorator Pattern?
+
+> **"Attach additional responsibilities to an object dynamically. Decorators provide a flexible alternative to subclassing for extending functionality."**
+
+### Core Idea
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    DECORATOR PATTERN — CORE IDEA                    │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   Instead of creating subclasses for every combination,             │
+│   WRAP the object with decorators at runtime.                       │
+│                                                                      │
+│   ┌──────────────┐                                                  │
+│   │   Client     │                                                  │
+│   └──────┬───────┘                                                  │
+│          │ calls doSomething()                                      │
+│          ▼                                                          │
+│   ┌──────────────┐     wraps      ┌──────────────┐                  │
+│   │  Decorator2  │───────────────▶│  Decorator1  │                  │
+│   └──────────────┘                └──────┬───────┘                  │
+│                                          │ wraps                     │
+│                                          ▼                          │
+│                                   ┌──────────────┐                  │
+│                                   │ Base Object  │                  │
+│                                   └──────────────┘                  │
+│                                                                      │
+│   Each decorator adds its own behavior and delegates to the         │
+│   next object in the chain.                                         │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Simple Example: `doSomething()` Enhancement
+
+```
+WITHOUT DECORATOR:
+────────────────────
+Client calls: obj1.doSomething()
+obj1 returns: "I did something"
+
+WITH DECORATOR:
+────────────────────
+Client calls: decorator2.doSomething()
+decorator2 → decorator1 → obj1 returns "I did something"
+decorator1 enhances: "I did something amazingly"
+decorator2 enhances: "I did something amazingly today"
+Client receives: "I did something amazingly today"
+```
+
+**Key Point:** The original object is never modified. Its behavior is **extended** by wrapping it with decorators.
+
+---
+
+## 2. The Problem: Inheritance Class Explosion
+
+### Mario Game Example (Using Inheritance)
+
+**Scenario:** Design a Mario character that can gain power-ups:
+- Height Up
+- Gun Shooting
+- Star Ability (fast speed, destroys enemies)
+- (Later: Flying ability)
+
+### ❌ Inheritance Approach — Class Explosion
+
+```
+                    ┌─────────────────────┐
+                    │       Mario         │
+                    │ + getAbilities()    │
+                    └──────────┬──────────┘
+                               △
+              ┌────────────────┼────────────────┐
+              │                │                │
+     ┌────────┴────────┐ ┌─────┴──────┐ ┌──────┴──────────┐
+     │ MarioWithHeight │ │MarioWithGun│ │MarioWithStar    │
+     └────────┬────────┘ └─────┬──────┘ └──────┬──────────┘
+              │                │                │
+              └────────────────┼────────────────┘
+                               │
+              COMBINATIONS EXPLODE:
+              ┌────────────────┼────────────────────────┐
+              │                │                        │
+     ┌────────┴───────┐ ┌─────┴────────┐ ┌──────────────┴─────────┐
+     │MarioWithHeight │ │MarioWithGun  │ │MarioWithHeightAndGun   │
+     │AndGun          │ │AndStar       │ │AndStarAndFly           │
+     └────────────────┘ └──────────────┘ └────────────────────────┘
+              └────────────────┼────────────────────────┘
+                               │
+                  AND SO ON... (2^n combinations!)
+```
+
+### Why This Explodes
+
+If Mario has 4 power-ups: `Height`, `Gun`, `Star`, `Fly`:
+
+| # Power-ups | Combinations | Subclasses Needed |
+|-------------|--------------|-------------------|
+| 1 | 4 | 4 |
+| 2 | 6 | 6 |
+| 3 | 4 | 4 |
+| 4 | 1 | 1 |
+| **Total** | | **15 subclasses!** |
+
+Add a 5th power-up → **31 subclasses**. This is **class explosion**.
+
+### The Two Big Problems
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│              PROBLEMS WITH INHERITANCE APPROACH                     │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   ❌ 1. CLASS EXPLOSION                                             │
+│      • 2^n subclasses for n features                                │
+│      • Every new feature → many new subclasses                      │
+│                                                                      │
+│   ❌ 2. NO RUNTIME FLEXIBILITY                                      │
+│      • Power-ups come and go (Star is limited time)                 │
+│      • Subclass is a compile-time decision                          │
+│      • Can't add/remove abilities dynamically                       │
+│                                                                      │
+│   🎯 REMEMBER: "Favor composition over inheritance"                 │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 3. The Solution: Decorator Pattern
+
+### Core Concept
+
+**Instead of extending behavior via inheritance, wrap the object with decorators.**
+
+```
+MARIO WITH DECORATORS:
+
+┌────────────────────┐
+│  StarPowerDecorator│  ← Outermost wrapper
+└─────────┬──────────┘
+          │ wraps
+          ▼
+┌────────────────────┐
+│  GunPowerDecorator │
+└─────────┬──────────┘
+          │ wraps
+          ▼
+┌────────────────────┐
+│  HeightUpDecorator │
+└─────────┬──────────┘
+          │ wraps
+          ▼
+┌────────────────────┐
+│   MarioCharacter   │  ← Base object (unchanged!)
+└────────────────────┘
+```
+
+### Benefits of Decorator Approach
+
+| Benefit | Description |
+|---------|-------------|
+| **No class explosion** | N decorators instead of 2^N subclasses |
+| **Runtime flexibility** | Add/remove decorators dynamically |
+| **Open/Closed** | New decorator = new class, no modification |
+| **Single Responsibility** | Each decorator handles one enhancement |
+| **Composability** | Any combination, any order |
+
+---
+
+## 4. UML Design
+
+### 4.1 Naming Convention
+
+- Pure abstract classes (all virtual methods) → prefix with `I` (e.g., `ICharacter`)
+- This is a standard convention to distinguish interfaces from concrete classes
+
+### 4.2 Generic UML Diagram
+
+```
+                    ┌──────────────────────────────┐
+                    │      <<interface>>           │
+                    │      IComponent              │
+                    ├──────────────────────────────┤
+                    │ + operation(): string = 0    │
+                    └──────────────┬───────────────┘
+                                   △
+                    ┌──────────────┴───────────────┐
+                    │                              │
+                    │ (implements)                 │ (implements + has-a)
+                    ▼                              ▼
+       ┌────────────────────────┐    ┌─────────────────────────────┐
+       │   ConcreteComponent    │    │    <<abstract>>             │
+       ├────────────────────────┤    │    Decorator                │
+       │ + operation()          │    ├─────────────────────────────┤
+       └────────────────────────┘    │ - component: IComponent*    │
+                                     ├─────────────────────────────┤
+                                     │ + operation()               │
+                                     └──────────────┬──────────────┘
+                                                    △
+                                     ┌──────────────┼──────────────┐
+                                     │              │              │
+                              ┌──────┴──────┐ ┌─────┴─────┐ ┌──────┴──────┐
+                              │ConcreteDecA │ │ConcreteDecB│ │ConcreteDecC│
+                              └─────────────┘ └───────────┘ └────────────┘
+```
+
+### 4.3 Key Relationships
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                 DECORATOR'S TWO RELATIONSHIPS                       │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   ┌─────────────────┐         ┌─────────────────┐                  │
+│   │   Decorator     │         │   IComponent    │                  │
+│   └────────┬────────┘         └────────┬────────┘                  │
+│            │                           │                            │
+│            │ IS-A (inheritance)        │                            │
+│            └───────────────────────────┘                            │
+│                                                                      │
+│   Decorator IS-A IComponent                                         │
+│   → So it can be used where IComponent is expected                 │
+│   → Enables stacking/wrapping                                       │
+│                                                                      │
+│   ┌─────────────────┐         ┌─────────────────┐                  │
+│   │   Decorator     │         │   IComponent    │                  │
+│   └────────┬────────┘         └────────┬────────┘                  │
+│            │                           │                            │
+│            │ HAS-A (composition)       │                            │
+│            └───────────────────────────┘                            │
+│                                                                      │
+│   Decorator HAS-A IComponent                                        │
+│   → Holds a reference to the wrapped object                        │
+│   → Delegates calls to wrapped object                              │
+│   → Then adds its own behavior                                     │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Key Insight:** Decorator uses **BOTH** `IS-A` (inheritance) and `HAS-A` (composition):
+- **IS-A** → To behave like the base class (so it can be stacked)
+- **HAS-A** → To delegate behavior and add new behavior dynamically
+
+---
+
+## 5. Code Implementation: Mario Example
+
+### 5.1 Interfaces and Base Character
+
+```cpp
+#include <iostream>
+#include <string>
+using namespace std;
+
+// ============ INTERFACE ============
+class ICharacter {
+public:
+    virtual string getAbilities() = 0;
+    virtual ~ICharacter() {}
+};
+
+// ============ CONCRETE COMPONENT ============
+class Mario : public ICharacter {
+public:
+    string getAbilities() override {
+        return "Mario";
+    }
+};
+```
+
+### 5.2 Abstract Decorator
+
+```cpp
+// ============ ABSTRACT DECORATOR ============
+class CharacterDecorator : public ICharacter {
+protected:
+    ICharacter* character;  // HAS-A (composition)
+
+public:
+    CharacterDecorator(ICharacter* c) : character(c) {}
+
+    string getAbilities() override {
+        return character->getAbilities();
+    }
+
+    ~CharacterDecorator() {
+        delete character;
+    }
+};
+```
+
+### 5.3 Concrete Decorators
+
+```cpp
+// ============ CONCRETE DECORATOR 1: Height Up ============
+class HeightUpDecorator : public CharacterDecorator {
+public:
+    HeightUpDecorator(ICharacter* c) : CharacterDecorator(c) {}
+
+    string getAbilities() override {
+        return character->getAbilities() + " with Height Up";
+    }
+};
+
+// ============ CONCRETE DECORATOR 2: Gun Power ============
+class GunPowerDecorator : public CharacterDecorator {
+public:
+    GunPowerDecorator(ICharacter* c) : CharacterDecorator(c) {}
+
+    string getAbilities() override {
+        return character->getAbilities() + " with Gun";
+    }
+};
+
+// ============ CONCRETE DECORATOR 3: Star Power ============
+class StarPowerDecorator : public CharacterDecorator {
+public:
+    StarPowerDecorator(ICharacter* c) : CharacterDecorator(c) {}
+
+    string getAbilities() override {
+        return character->getAbilities() + " with Star Power (Limited Time)";
+    }
+};
+
+// ============ NEW DECORATOR — No existing code changed! ============
+class FlyPowerDecorator : public CharacterDecorator {
+public:
+    FlyPowerDecorator(ICharacter* c) : CharacterDecorator(c) {}
+
+    string getAbilities() override {
+        return character->getAbilities() + " with Fly Power";
+    }
+};
+```
+
+### 5.4 Main (Client)
+
+```cpp
+int main() {
+    // Start with a base Mario
+    ICharacter* mario = new Mario();
+    cout << "Base: " << mario->getAbilities() << "\n";
+
+    // Wrap with HeightUpDecorator
+    mario = new HeightUpDecorator(mario);
+    cout << "After HeightUp: " << mario->getAbilities() << "\n";
+
+    // Wrap with GunPowerDecorator
+    mario = new GunPowerDecorator(mario);
+    cout << "After GunPower: " << mario->getAbilities() << "\n";
+
+    // Wrap with StarPowerDecorator
+    mario = new StarPowerDecorator(mario);
+    cout << "After StarPower: " << mario->getAbilities() << "\n";
+
+    // Clean up (deletes entire chain)
+    delete mario;
+    return 0;
+}
+```
+
+### 5.5 Output
+
+```
+Base: Mario
+After HeightUp: Mario with Height Up
+After GunPower: Mario with Height Up with Gun
+After StarPower: Mario with Height Up with Gun with Star Power (Limited Time)
+```
+
+### 5.6 Call Chain Visualization
+
+```
+mario->getAbilities()
+    │
+    ▼
+┌──────────────────────┐
+│ StarPowerDecorator   │ → calls character->getAbilities()
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│ GunPowerDecorator    │ → calls character->getAbilities()
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│ HeightUpDecorator    │ → calls character->getAbilities()
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│       Mario          │ → returns "Mario"
+└──────────────────────┘
+
+Return path (adding enhancements):
+"Mario"
+    ▲ + " with Height Up"
+"Mario with Height Up"
+    ▲ + " with Gun"
+"Mario with Height Up with Gun"
+    ▲ + " with Star Power (Limited Time)"
+"Mario with Height Up with Gun with Star Power (Limited Time)"
+```
+
+**Note:** This is essentially **recursion** — walking down the chain, hitting the base case, then walking back up adding enhancements.
+
+---
+
+## 6. How Decorator Solves Inheritance Problem (Simple Example)
+
+### The Problem Setup
+
+Suppose you want to add features **F1, F2, F3** to an object.
+
+### ❌ Inheritance Solution → Class Explosion
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│         INHERITANCE — CLASS EXPLOSION FOR 3 FEATURES                │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│                    ┌─────────────┐                                  │
+│                    │  Base       │                                  │
+│                    └──────┬──────┘                                  │
+│           ┌───────────────┼───────────────┐                         │
+│           │               │               │                         │
+│      ┌────┴────┐     ┌────┴────┐     ┌────┴────┐                    │
+│      │Base+F1  │     │Base+F2  │     │Base+F3  │                    │
+│      └────┬────┘     └────┬────┘     └────┬────┘                    │
+│           │               │               │                         │
+│      ┌────┴────┐     ┌────┴────┐     ┌────┴────┐                    │
+│      │Base+F1  │     │Base+F2  │     │Base+F3  │                    │
+│      │  +F2    │     │  +F3    │     │  +F1    │                    │
+│      └────┬────┘     └────┬────┘     └────┬────┘                    │
+│           │               │               │                         │
+│      ┌────┴───────────────┴───────────────┴────┐                   │
+│      │        Base+F1+F2+F3                    │                   │
+│      └─────────────────────────────────────────┘                    │
+│                                                                      │
+│   Total subclasses for N features = 2^N - 1                        │
+│   For N=3: 7 subclasses                                            │
+│   For N=5: 31 subclasses                                           │
+│   For N=10: 1023 subclasses! 😱                                    │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### ✅ Decorator Solution → Just N Decorators
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│         DECORATOR — JUST N DECORATORS FOR N FEATURES                │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│                    ┌─────────────┐                                  │
+│                    │  Base       │                                  │
+│                    └──────┬──────┘                                  │
+│                           △                                          │
+│                    ┌──────┴──────┐                                  │
+│                    │  Decorator  │                                  │
+│                    └──────┬──────┘                                  │
+│           ┌───────────────┼───────────────┐                         │
+│           │               │               │                         │
+│      ┌────┴────┐     ┌────┴────┐     ┌────┴────┐                    │
+│      │  F1 Dec │     │  F2 Dec │     │  F3 Dec │                    │
+│      └─────────┘     └─────────┘     └─────────┘                    │
+│                                                                      │
+│   For N features → N decorator classes                              │
+│   For N=3: 3 classes                                               │
+│   For N=5: 5 classes                                               │
+│   For N=10: 10 classes ✅                                          │
+│                                                                      │
+│   And ANY combination works at runtime:                             │
+│   new F1(new F2(new F3(new Base())))   ✅                          │
+│   new F2(new F1(new Base()))           ✅                          │
+│   new F3(new F3(new F1(new Base())))   ✅                          │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Side-by-Side Comparison
+
+| Aspect | Inheritance | Decorator |
+|--------|-------------|-----------|
+| **Classes for N=3** | 7 | 3 |
+| **Classes for N=5** | 31 | 5 |
+| **Classes for N=10** | 1023 | 10 |
+| **Runtime change** | ❌ Impossible | ✅ Possible |
+| **Order flexibility** | ❌ Fixed at compile time | ✅ Any order at runtime |
+| **Modify existing code for new feature** | ❌ Yes (new subclasses) | ✅ No (just new decorator) |
+| **Duplicate code** | ❌ Yes (common logic repeated) | ✅ No (reuse via composition) |
+
+### Simple Concrete Example
+
+**Problem:** A coffee shop where you can add toppings (Milk, Sugar, Whip) to a base coffee.
+
+**❌ Inheritance approach:** You'd need:
+- `CoffeeWithMilk`
+- `CoffeeWithSugar`
+- `CoffeeWithWhip`
+- `CoffeeWithMilkAndSugar`
+- `CoffeeWithMilkAndWhip`
+- `CoffeeWithSugarAndWhip`
+- `CoffeeWithMilkAndSugarAndWhip`
+- ... and so on. **7 classes for 3 toppings!**
+
+**✅ Decorator approach:** Just 3 decorators:
+- `MilkDecorator`
+- `SugarDecorator`
+- `WhipDecorator`
+
+And compose them at runtime:
+
+```cpp
+// Just milk
+ICoffee* c1 = new MilkDecorator(new Coffee());
+
+// Milk + Sugar
+ICoffee* c2 = new SugarDecorator(new MilkDecorator(new Coffee()));
+
+// Milk + Sugar + Whip
+ICoffee* c3 = new WhipDecorator(
+                  new SugarDecorator(
+                      new MilkDecorator(new Coffee())));
+```
+
+**Same 3 classes handle ALL combinations!**
+
+---
+
+## 7. The Recursive Nature of Decorators
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    RECURSIVE CALL STRUCTURE                         │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   Calling getAbilities() on the outermost decorator:                │
+│                                                                      │
+│   ┌────────────────────────────────────────────────────────────┐   │
+│   │  StarPowerDecorator.getAbilities()                         │   │
+│   │     └── GunPowerDecorator.getAbilities()                   │   │
+│   │            └── HeightUpDecorator.getAbilities()            │   │
+│   │                   └── Mario.getAbilities()                 │   │
+│   │                       returns "Mario"                     │   │
+│   │                   appends " with Height Up"               │   │
+│   │            appends " with Gun"                            │   │
+│   │     appends " with Star Power"                            │   │
+│   │  returns full string                                      │   │
+│   └────────────────────────────────────────────────────────────┘   │
+│                                                                      │
+│   This is essentially RECURSION with different classes.             │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 8. Real-World Use Cases
+
+### Use Case 1: Text Editor (like Google Docs)
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    TEXT EDITOR — DECORATOR PATTERN                  │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   ┌──────────────┐                                                  │
+│   │   IText      │                                                  │
+│   │  (abstract)  │                                                  │
+│   ├──────────────┤                                                  │
+│   │ + render()   │                                                  │
+│   └──────┬───────┘                                                  │
+│          △                                                          │
+│          │                                                          │
+│   ┌──────┴──────────┬──────────────┬──────────────┐                 │
+│   │                 │              │              │                 │
+│   ▼                 ▼              ▼              ▼                 │
+│ SimpleText    BoldDecorator  ItalicDecorator  UnderlineDecorator   │
+│                                                                      │
+│   Example: Bold + Italic text on underline                          │
+│   new UnderlineDecorator(                                           │
+│       new ItalicDecorator(                                          │
+│           new BoldDecorator(                                        │
+│               new SimpleText("Hello"))))                            │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Use Case 2: Form Validation (Backend)
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    FORM VALIDATION — DECORATOR                      │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   Base Form                                                         │
+│      │                                                              │
+│      ├─▶ EmailValidator      (checks valid email)                   │
+│      ├─▶ SQLInjectionChecker (checks SQL attacks)                   │
+│      ├─▶ XSSChecker          (checks XSS attacks)                   │
+│      └─▶ LengthValidator     (checks length constraints)            │
+│                                                                      │
+│   Each validator is a decorator that can be chained.                │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Use Case 3: Java I/O Streams
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    JAVA I/O — CLASSIC DECORATOR                     │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   InputStream                    (abstract component)               │
+│      ├── FileInputStream         (concrete component)               │
+│      ├── BufferedInputStream     (decorator)                        │
+│      ├── DataInputStream         (decorator)                        │
+│      └── GZIPInputStream         (decorator)                        │
+│                                                                      │
+│   Used in real Java code:                                           │
+│   new DataInputStream(                                              │
+│       new BufferedInputStream(                                      │
+│           new FileInputStream("file.txt")))                         │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 9. Decorator vs Inheritance — Summary
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│              INHERITANCE vs DECORATOR — DECISION GUIDE              │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   USE INHERITANCE WHEN:                                             │
+│   • Features are fixed at compile time                              │
+│   • Number of combinations is small                                 │
+│   • "Is-a" relationship truly applies                               │
+│                                                                      │
+│   USE DECORATOR WHEN:                                               │
+│   • Features should be added/removed at RUNTIME                     │
+│   • Many combinations exist (combinatorial explosion)               │
+│   • You want to keep "single responsibility" per feature            │
+│   • You want to avoid class explosion                               │
+│   • Composition is more natural than inheritance                    │
+│                                                                      │
+│   🎯 GOLDEN RULE: "Favor composition over inheritance"              │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 10. Key Takeaways
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    DECORATOR PATTERN — SUMMARY                      │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   🎯 PURPOSE                                                        │
+│   Attach additional responsibilities to an object DYNAMICALLY.      │
+│   Provides flexible alternative to subclassing.                     │
+│                                                                      │
+│   🧩 KEY COMPONENTS                                                 │
+│   • IComponent     — interface/abstract base                        │
+│   • ConcreteComponent — actual base object                          │
+│   • Decorator      — abstract wrapper (IS-A + HAS-A)                │
+│   • ConcreteDecorator — specific enhancement                        │
+│                                                                      │
+│   🔑 KEY INSIGHT                                                    │
+│   Decorator uses BOTH inheritance AND composition:                  │
+│   • IS-A → to be substitutable for the base                         │
+│   • HAS-A → to delegate and wrap behavior                           │
+│                                                                      │
+│   ✅ BENEFITS                                                       │
+│   • No class explosion                                              │
+│   • Runtime flexibility                                             │
+│   • Open/Closed Principle                                           │
+│   • Single Responsibility per decorator                             │
+│   • Unlimited combinations with few classes                         │
+│                                                                      │
+│   ⚠️ TRADE-OFFS                                                     │
+│   • Many small classes                                              │
+│   • Debugging a long decorator chain is harder                      │
+│   • Order of decorators matters                                     │
+│                                                                      │
+│   🌍 REAL-WORLD USES                                                │
+│   • Java I/O Streams (BufferedInputStream, DataInputStream)         │
+│   • Text formatting (Bold, Italic, Underline)                       │
+│   • Form validation chains                                          │
+│   • HTTP middleware/authentication chains                           │
+│   • Pizza/Coffee topping customization                              │
+│                                                                      │
+│   💡 THE ONE-LINE SUMMARY                                           │
+│   "Wrap objects dynamically to add features without subclassing."   │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Interview Wisdom
+
+The Decorator Pattern is:
+- A **structural pattern** (deals with class/object composition)
+- **Frequently asked** in LLD interviews, especially for text editors, form validation, and I/O streams
+- Excellent answer to the question: **"How do you avoid class explosion?"**
+
+---
+
+## 14. Build Your Own Notification Engine (42:26)
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
