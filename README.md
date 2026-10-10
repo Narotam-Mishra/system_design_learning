@@ -9161,4 +9161,714 @@ The Decorator Pattern is:
 
 ## 14. Build Your Own Notification Engine (42:26)
 
+This lecture is a **complete LLD interview walkthrough** for designing a **Notification System** — a classic interview problem. It combines **three design patterns**: Observer, Decorator, and Strategy, plus the Singleton pattern.
+
+---
+
+## 1. Requirements Gathering
+
+### Functional & Non-Functional Requirements
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    NOTIFICATION SYSTEM REQUIREMENTS                 │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   ✅ PLUG AND PLAY MODEL                                            │
+│      Integration into any application with minimal code changes     │
+│                                                                      │
+│   ✅ HIGHLY EXTENDABLE                                              │
+│      Support SMS, Email, Popup now — WhatsApp tomorrow             │
+│                                                                      │
+│   ✅ DYNAMIC NOTIFICATION ENHANCEMENT                               │
+│      Add headers, footers, signatures, timestamps at runtime       │
+│                                                                      │
+│   ✅ STORE ALL NOTIFICATIONS                                        │
+│      Maintain history of all notifications sent                     │
+│                                                                      │
+│   ✅ LOGGING                                                        │
+│      Log every notification (console for now, file later)          │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 2. Design Patterns Used
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    PATTERNS IN NOTIFICATION SYSTEM                  │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   ┌──────────────────────┐                                          │
+│   │  DECORATOR PATTERN   │  → Dynamically enhance notification      │
+│   │                      │    (add timestamp, signature, etc.)      │
+│   └──────────────────────┘                                          │
+│                                                                      │
+│   ┌──────────────────────┐                                          │
+│   │  OBSERVER PATTERN    │  → Notify all subscribers when a         │
+│   │                      │    new notification is pushed            │
+│   └──────────────────────┘                                          │
+│                                                                      │
+│   ┌──────────────────────┐                                          │
+│   │  STRATEGY PATTERN    │  → Different delivery methods            │
+│   │                      │    (Email, SMS, Popup)                   │
+│   └──────────────────────┘                                          │
+│                                                                      │
+│   ┌──────────────────────┐                                          │
+│   │  SINGLETON PATTERN   │  → NotificationService has one instance  │
+│   │                      │    (single source of truth for history)  │
+│   └──────────────────────┘                                          │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 3. UML Design — Building Bottom-Up
+
+### 3.1 Notification Hierarchy (Decorator Pattern)
+
+```
+                    ┌──────────────────────────────┐
+                    │      <<interface>>           │
+                    │      INotification           │
+                    ├──────────────────────────────┤
+                    │ + getContent(): string = 0   │
+                    └──────────────┬───────────────┘
+                                   △
+                    ┌──────────────┴───────────────┐
+                    │                              │
+                    ▼                              ▼
+       ┌────────────────────────┐    ┌─────────────────────────────┐
+       │  SimpleNotification    │    │  <<abstract>>               │
+       ├────────────────────────┤    │  INotificationDecorator     │
+       │ - text: string         │    ├─────────────────────────────┤
+       ├────────────────────────┤    │ - notification: INotif*     │
+       │ + getContent()         │    ├─────────────────────────────┤
+       └────────────────────────┘    │ + getContent()              │
+                                     └──────────────┬──────────────┘
+                                                    △
+                                     ┌──────────────┼──────────────┐
+                                     │              │              │
+                              ┌──────┴──────┐ ┌─────┴─────┐ ┌─────┴─────┐
+                              │ Timestamp   │ │ Signature │ │ (Future   │
+                              │ Decorator   │ │ Decorator │ │  Decors)  │
+                              └─────────────┘ └───────────┘ └───────────┘
+```
+
+**Key Points:**
+- `INotificationDecorator` uses **IS-A** (inherits `INotification`) + **HAS-A** (holds reference to `INotification`)
+- Enables runtime stacking of decorators
+
+### 3.2 Observer Pattern Components
+
+```
+                    ┌──────────────────────────────┐
+                    │      <<interface>>           │
+                    │      IObserver               │
+                    ├──────────────────────────────┤
+                    │ + update(): void = 0         │
+                    └──────────────┬───────────────┘
+                                   △
+                    ┌──────────────┴───────────────┐
+                    │                              │
+                    ▼                              ▼
+       ┌────────────────────────┐    ┌─────────────────────────────┐
+       │      Logger            │    │   NotificationEngine        │
+       ├────────────────────────┤    ├─────────────────────────────┤
+       │ - observable: INotif*  │    │ - observable: IObservable*  │
+       ├────────────────────────┤    │ - strategies: List<IStrat*> │
+       │ + update()             │    ├─────────────────────────────┤
+       └────────────────────────┘    │ + update()                  │
+                                     │ + addStrategy(IStrategy*)   │
+                                     └─────────────────────────────┘
+
+                    ┌──────────────────────────────┐
+                    │      <<interface>>           │
+                    │      IObservable             │
+                    ├──────────────────────────────┤
+                    │ + add(IObserver*): void      │
+                    │ + remove(IObserver*): void   │
+                    │ + notify(): void             │
+                    └──────────────┬───────────────┘
+                                   △
+                    ┌──────────────┴───────────────┐
+                    │   NotificationObservable     │
+                    ├──────────────────────────────┤
+                    │ - observers: List<IObserver*>│
+                    │ - notification: INotification│
+                    ├──────────────────────────────┤
+                    │ + add() / remove() / notify()│
+                    │ + setNotification(INotif*)   │
+                    │ + getNotification(): INotif* │
+                    │ + getNotificationContent()   │
+                    └──────────────────────────────┘
+```
+
+### 3.3 Strategy Pattern Components
+
+```
+                    ┌──────────────────────────────┐
+                    │      <<interface>>           │
+                    │   INotificationStrategy      │
+                    ├──────────────────────────────┤
+                    │ + sendNotification(str) = 0  │
+                    └──────────────┬───────────────┘
+                                   △
+                    ┌──────────────┼──────────────┐
+                    │              │              │
+              ┌─────┴─────┐  ┌─────┴─────┐  ┌─────┴─────┐
+              │  Email    │  │   SMS     │  │  Popup    │
+              │ Strategy  │  │ Strategy  │  │ Strategy  │
+              └───────────┘  └───────────┘  └───────────┘
+```
+
+### 3.4 Complete UML (Clean View)
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    NOTIFICATION SYSTEM — COMPLETE UML               │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   [NOTIFICATION HIERARCHY]                                          │
+│   INotification ◀── SimpleNotification                              │
+│        △                                                            │
+│   INotificationDecorator                                            │
+│        ├── TimestampDecorator                                       │
+│        └── SignatureDecorator                                       │
+│                                                                      │
+│   [OBSERVER PATTERN]                                                │
+│   IObserver ◀── Logger                                              │
+│             ◀── NotificationEngine                                  │
+│                                                                      │
+│   IObservable ◀── NotificationObservable (holds INotification*)     │
+│                                                                      │
+│   [STRATEGY PATTERN]                                                │
+│   INotificationStrategy ◀── EmailStrategy                           │
+│                         ◀── SMSStrategy                             │
+│                         ◀── PopupStrategy                           │
+│                                                                      │
+│   NotificationEngine HAS-A List<INotificationStrategy>              │
+│                                                                      │
+│   [SINGLETON]                                                       │
+│   NotificationService (Singleton)                                   │
+│   • Holds IObservable*                                              │
+│   • Holds List<INotification> (history)                             │
+│   • sendNotification(INotification*)                                │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 4. Data Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    NOTIFICATION FLOW                                │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   Client                                                            │
+│      │                                                              │
+│      │ 1. Create INotification                                      │
+│      │    new SignatureDecorator(                                   │
+│      │      new TimestampDecorator(                                 │
+│      │        new SimpleNotification("Your order shipped")))        │
+│      │                                                              │
+│      ▼                                                              │
+│   NotificationService.sendNotification(notification)                │
+│      │                                                              │
+│      │ 2. Store in history list                                     │
+│      │ 3. Call observable->setNotification(notification)            │
+│      ▼                                                              │
+│   NotificationObservable.setNotification()                          │
+│      │                                                              │
+│      │ 4. Internally calls notify()                                 │
+│      ▼                                                              │
+│   NotificationObservable.notify()                                   │
+│      │                                                              │
+│      │ 5. Loop through all observers, call update()                 │
+│      ▼                                                              │
+│   ┌───────────────────────────┬──────────────────────────────────┐  │
+│   ▼                           ▼                                  ▼  │
+│ Logger.update()      NotificationEngine.update()                     │
+│   │                           │                                      │
+│   │ Reads content             │ Reads content                       │
+│   │ Logs to console           │ Loops through strategies            │
+│   │                           ▼                                      │
+│   │              ┌────────────┼────────────┐                        │
+│   │              ▼            ▼            ▼                        │
+│   │         Email.send()  SMS.send()  Popup.send()                  │
+│   │              │            │            │                        │
+│   │              ▼            ▼            ▼                        │
+│   │         Email user    SMS user    Popup user                    │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 5. Code Implementation
+
+### 5.1 Notification Hierarchy (Decorator Pattern)
+
+```cpp
+#include <iostream>
+#include <vector>
+#include <string>
+#include <mutex>
+using namespace std;
+
+// ============ NOTIFICATION INTERFACE ============
+class INotification {
+public:
+    virtual string getContent() = 0;
+    virtual ~INotification() {}
+};
+
+// ============ CONCRETE NOTIFICATION ============
+class SimpleNotification : public INotification {
+    string text;
+public:
+    SimpleNotification(string msg) : text(msg) {}
+    string getContent() override { return text; }
+};
+
+// ============ ABSTRACT DECORATOR ============
+class INotificationDecorator : public INotification {
+protected:
+    INotification* notification;
+public:
+    INotificationDecorator(INotification* n) : notification(n) {}
+    ~INotificationDecorator() { delete notification; }
+    virtual string getContent() = 0;
+};
+
+// ============ CONCRETE DECORATORS ============
+class TimestampDecorator : public INotificationDecorator {
+public:
+    TimestampDecorator(INotification* n) : INotificationDecorator(n) {}
+    string getContent() override {
+        return "[2024-01-15 10:30:00] " + notification->getContent();
+    }
+};
+
+class SignatureDecorator : public INotificationDecorator {
+    string signature;
+public:
+    SignatureDecorator(INotification* n, string sig)
+        : INotificationDecorator(n), signature(sig) {}
+    string getContent() override {
+        return notification->getContent() + "\n-- " + signature;
+    }
+};
+```
+
+### 5.2 Observer Pattern Components
+
+```cpp
+// ============ OBSERVER INTERFACE ============
+class IObserver {
+public:
+    virtual void update() = 0;
+    virtual ~IObserver() {}
+};
+
+// ============ OBSERVABLE INTERFACE ============
+class IObservable {
+public:
+    virtual void add(IObserver* obs) = 0;
+    virtual void remove(IObserver* obs) = 0;
+    virtual void notify() = 0;
+    virtual ~IObservable() {}
+};
+
+// ============ CONCRETE OBSERVABLE ============
+class NotificationObservable : public IObservable {
+    vector<IObserver*> observers;
+    INotification* currentNotification;
+public:
+    NotificationObservable() : currentNotification(nullptr) {}
+    
+    void add(IObserver* obs) override {
+        observers.push_back(obs);
+    }
+    
+    void remove(IObserver* obs) override {
+        observers.erase(remove(observers.begin(), observers.end(), obs),
+                       observers.end());
+    }
+    
+    void notify() override {
+        for (auto* obs : observers) obs->update();
+    }
+    
+    void setNotification(INotification* n) {
+        if (currentNotification) delete currentNotification;
+        currentNotification = n;
+        notify();
+    }
+    
+    INotification* getNotification() { return currentNotification; }
+    string getNotificationContent() {
+        return currentNotification ? currentNotification->getContent() : "";
+    }
+    
+    ~NotificationObservable() {
+        if (currentNotification) delete currentNotification;
+    }
+};
+```
+
+### 5.3 Strategy Pattern (Notification Delivery)
+
+```cpp
+// ============ STRATEGY INTERFACE ============
+class INotificationStrategy {
+public:
+    virtual void sendNotification(const string& content) = 0;
+    virtual ~INotificationStrategy() {}
+};
+
+// ============ CONCRETE STRATEGIES ============
+class EmailStrategy : public INotificationStrategy {
+    string email;
+public:
+    EmailStrategy(string e) : email(e) {}
+    void sendNotification(const string& content) override {
+        cout << "Sending Email to " << email << ": " << content << "\n";
+    }
+};
+
+class SMSStrategy : public INotificationStrategy {
+    string mobile;
+public:
+    SMSStrategy(string m) : mobile(m) {}
+    void sendNotification(const string& content) override {
+        cout << "Sending SMS to " << mobile << ": " << content << "\n";
+    }
+};
+
+class PopupStrategy : public INotificationStrategy {
+public:
+    void sendNotification(const string& content) override {
+        cout << "Popup Notification: " << content << "\n";
+    }
+};
+```
+
+### 5.4 Concrete Observers
+
+```cpp
+// ============ LOGGER OBSERVER ============
+class Logger : public IObserver {
+    NotificationObservable* observable;
+public:
+    // Default constructor — gets observable from service
+    Logger() {
+        observable = NotificationService::getInstance()->getObservable();
+        observable->add(this);  // Auto-register
+    }
+    
+    Logger(NotificationObservable* obs) : observable(obs) {}
+    
+    void update() override {
+        cout << "[LOG] New notification: "
+             << observable->getNotificationContent() << "\n";
+    }
+};
+
+// ============ NOTIFICATION ENGINE OBSERVER ============
+class NotificationEngine : public IObserver {
+    NotificationObservable* observable;
+    vector<INotificationStrategy*> strategies;
+public:
+    NotificationEngine() {
+        observable = NotificationService::getInstance()->getObservable();
+        observable->add(this);  // Auto-register
+    }
+    
+    void addStrategy(INotificationStrategy* s) {
+        strategies.push_back(s);
+    }
+    
+    void update() override {
+        string content = observable->getNotificationContent();
+        for (auto* s : strategies) {
+            s->sendNotification(content);
+        }
+    }
+};
+```
+
+### 5.5 Notification Service (Singleton)
+
+```cpp
+class NotificationService {
+    static NotificationService* instance;
+    NotificationObservable* observable;
+    vector<INotification*> history;  // Store all notifications
+    
+    NotificationService() {
+        observable = new NotificationObservable();
+    }
+    
+public:
+    NotificationService(const NotificationService&) = delete;
+    NotificationService& operator=(const NotificationService&) = delete;
+    
+    static NotificationService* getInstance() {
+        if (instance == nullptr) {
+            instance = new NotificationService();
+        }
+        return instance;
+    }
+    
+    NotificationObservable* getObservable() { return observable; }
+    
+    void sendNotification(INotification* n) {
+        history.push_back(n);              // Store history
+        observable->setNotification(n);    // Trigger observers
+    }
+    
+    ~NotificationService() {
+        delete observable;
+        for (auto* n : history) delete n;
+    }
+};
+
+NotificationService* NotificationService::instance = nullptr;
+```
+
+### 5.6 Client (Main)
+
+```cpp
+int main() {
+    // 1. Get singleton service instance
+    NotificationService* service = NotificationService::getInstance();
+    
+    // 2. Create observers (auto-register via default constructor)
+    Logger* logger = new Logger();
+    NotificationEngine* engine = new NotificationEngine();
+    
+    // 3. Configure engine with strategies
+    engine->addStrategy(new EmailStrategy("user@example.com"));
+    engine->addStrategy(new SMSStrategy("+91-9876543210"));
+    engine->addStrategy(new PopupStrategy());
+    
+    // 4. Create notification with decorators
+    INotification* notification = new SignatureDecorator(
+        new TimestampDecorator(
+            new SimpleNotification("Your order has been shipped!")),
+        "Customer Care");
+    
+    // 5. Send notification
+    service->sendNotification(notification);
+    
+    // 6. Cleanup
+    delete logger;
+    delete engine;
+    // (service stays alive as singleton)
+    return 0;
+}
+```
+
+### 5.7 Output
+
+```
+[LOG] New notification: [2024-01-15 10:30:00] Your order has been shipped!
+-- Customer Care
+
+Sending Email to user@example.com: [2024-01-15 10:30:00] Your order has been shipped!
+-- Customer Care
+
+Sending SMS to +91-9876543210: [2024-01-15 10:30:00] Your order has been shipped!
+-- Customer Care
+
+Popup Notification: [2024-01-15 10:30:00] Your order has been shipped!
+-- Customer Care
+```
+
+---
+
+## 6. Key Design Insight: Plug-and-Play
+
+### Before: Tightly Coupled Client
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    BEFORE — CLIENT DOES TOO MUCH                    │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   Client must:                                                      │
+│   • Create the observable                                           │
+│   • Create observers                                                │
+│   • Attach observers to observable                                  │
+│   • Pass observable to observers                                    │
+│   • Then finally send notification                                  │
+│                                                                      │
+│   ❌ Client knows too much about internal structure                 │
+│   ❌ Not plug-and-play                                              │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### After: Plug-and-Play with `this` Auto-Registration
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    AFTER — CLIENT DOES MINIMUM                      │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   In Logger Constructor:                                            │
+│   ────────────────────────                                          │
+│   Logger() {                                                        │
+│       observable = NotificationService::getInstance()->getObservable│
+│       observable->add(this);  // ← Auto-register                    │
+│   }                                                                 │
+│                                                                      │
+│   In NotificationEngine Constructor:                                │
+│   ────────────────────────────────────                              │
+│   NotificationEngine() {                                            │
+│       observable = NotificationService::getInstance()->getObservable│
+│       observable->add(this);  // ← Auto-register                    │
+│   }                                                                 │
+│                                                                      │
+│   Client code:                                                      │
+│   ────────────                                                      │
+│   NotificationService* service = NotificationService::getInstance();│
+│   Logger* logger = new Logger();          // Auto-registers!        │
+│   NotificationEngine* engine = new NotificationEngine(); // Auto   │
+│   engine->addStrategy(...);                                         │
+│   service->sendNotification(notification);                          │
+│                                                                      │
+│   ✅ Truly plug-and-play!                                           │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 7. Design Principles Applied
+
+| Principle | How Applied |
+|-----------|-------------|
+| **SRP** | Each class has one job (Notification = content, Decorator = enhancement, Observer = reaction, Strategy = delivery) |
+| **OCP** | New notification type → new subclass; new delivery method → new strategy |
+| **LSP** | All concrete decorators substitutable for `INotification` |
+| **ISP** | Small, focused interfaces (`INotification`, `IObserver`, `IStrategy`) |
+| **DIP** | `NotificationEngine` depends on `INotificationStrategy`, not concrete strategies |
+
+---
+
+## 8. Extension Points
+
+### How to Add a New Notification Type
+
+```cpp
+// Just create a new concrete notification — no existing code changes!
+class HTMLNotification : public INotification {
+    string htmlContent;
+public:
+    HTMLNotification(string html) : htmlContent(html) {}
+    string getContent() override { return htmlContent; }
+};
+```
+
+### How to Add a New Decorator
+
+```cpp
+class BoldDecorator : public INotificationDecorator {
+public:
+    BoldDecorator(INotification* n) : INotificationDecorator(n) {}
+    string getContent() override {
+        return "**" + notification->getContent() + "**";
+    }
+};
+```
+
+### How to Add a New Delivery Strategy (e.g., WhatsApp)
+
+```cpp
+class WhatsAppStrategy : public INotificationStrategy {
+    string number;
+public:
+    WhatsAppStrategy(string n) : number(n) {}
+    void sendNotification(const string& content) override {
+        cout << "WhatsApp to " << number << ": " << content << "\n";
+    }
+};
+
+// In main:
+engine->addStrategy(new WhatsAppStrategy("+91-9876543210"));
+```
+
+**No changes needed to:** `NotificationService`, `NotificationEngine`, `NotificationObservable`, or any existing class!
+
+---
+
+## 9. Key Takeaways
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    NOTIFICATION SYSTEM — SUMMARY                    │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   🎯 THE THREE PATTERNS WORKING TOGETHER                            │
+│                                                                      │
+│   1. DECORATOR → Enhances the notification content dynamically     │
+│      (add timestamp, signature, bold, etc.)                         │
+│                                                                      │
+│   2. OBSERVER → Broadcasts notification to multiple consumers      │
+│      (Logger, NotificationEngine)                                   │
+│                                                                      │
+│   3. STRATEGY → Selects delivery channel at runtime                │
+│      (Email, SMS, Popup, WhatsApp)                                  │
+│                                                                      │
+│   4. SINGLETON → Single source of truth for the service            │
+│      (history, observable)                                          │
+│                                                                      │
+│   💡 KEY INSIGHT                                                    │
+│   Design patterns don't work in isolation — they compose!           │
+│   The best LLD solutions combine multiple patterns.                 │
+│                                                                      │
+│   ✅ ACHIEVEMENTS                                                   │
+│   • Plug-and-play model with auto-registration                      │
+│   • Extensible — add features without modifying existing code       │
+│   • Dynamically enhanced notifications                              │
+│   • History maintained by singleton                                 │
+│   • Logging integrated through observer                             │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Interview Wisdom
+
+> **"As you practice more LLD problems, you'll start seeing patterns everywhere — 'Ah, Observer fits here', 'Decorator fits there'. That's the real skill."**
+
+The lecture emphasizes:
+- **Start with requirements gathering** — ask counter-questions
+- **Build bottom-up** — smaller objects first, then compose
+- **Use UML before code** — keeps you and interviewer on same page
+- **Apply design patterns naturally** — don't force them
+- **Refactor for plug-and-play** — client should know minimum
+
+### The Meta-Lesson
+
+This problem beautifully demonstrates that **real-world LLD problems rarely use just one pattern**. The Notification System combines:
+- **Decorator** for content enhancement
+- **Observer** for broadcasting
+- **Strategy** for delivery mechanisms
+- **Singleton** for service management
+
+The **NotificationService** acts as a **bridge** connecting:
+- The **notification creation flow** (Decorator pattern)
+- The **notification delivery flow** (Observer + Strategy patterns)
+
+---
+
+## 15. Command Design Pattern | Real-world use case + Code (29:54)
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
