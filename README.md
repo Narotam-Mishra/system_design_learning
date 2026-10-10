@@ -10424,4 +10424,371 @@ It elegantly demonstrates **composition over inheritance** and helps avoid class
 
 ## 16. Adapter Design Pattern | Real-world use case + Code (21:52)
 
+This lecture covers the **Adapter Design Pattern** — a structural pattern that allows two incompatible interfaces to work together. The classic real-world analogy is a **plug adapter** that lets an Indian charger fit into a US socket.
+
+---
+
+## 1. Real-Life Analogy
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    REAL-LIFE ADAPTER                                │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   Indian Charger (Type C)  ──▶  Adapter  ──▶  US Socket (Type A)    │
+│                                                                      │
+│   • Your charger has a Type C plug                                  │
+│   • The wall socket expects a Type A plug                           │
+│   • They can't connect directly                                     │
+│   • An adapter bridges the two                                      │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**In programming:** The Adapter pattern lets classes with incompatible interfaces collaborate.
+
+---
+
+## 2. The Problem: Incompatible Interfaces
+
+### Scenario
+
+Your application (`Existing Code`) needs JSON data from a report. However, a third-party library (`XMLDataProvider`) only provides XML data. The two cannot talk directly because their interfaces are different.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    INCOMPATIBLE INTERFACES                          │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   ┌─────────────────────┐         ┌─────────────────────┐           │
+│   │   Existing Code     │         │  XMLDataProvider    │           │
+│   │   (Client)          │         │  (Third-Party)      │           │
+│   ├─────────────────────┤         ├─────────────────────┤           │
+│   │ + getJsonData()     │         │ + getXmlData()      │           │
+│   └─────────────────────┘         └─────────────────────┘           │
+│              │                               │                       │
+│              └───────────┬───────────────────┘                       │
+│                          │                                           │
+│                    ❌ Cannot talk directly                           │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Why Not Just Modify Existing Code?
+
+- **Tight coupling:** Existing code becomes dependent on the third-party library.
+- **Vendor lock-in:** Switching to another library later requires changes throughout the codebase.
+- **Violates Open/Closed Principle:** Modifying existing code for every new integration.
+
+---
+
+## 3. The Solution: Adapter Pattern
+
+Introduce an **Adapter** class that sits between the client and the third-party library. The adapter implements the interface the client expects and internally calls the third-party library.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    ADAPTER SOLUTION                                 │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   ┌─────────────┐      ┌─────────────┐      ┌─────────────┐         │
+│   │   Client    │─────▶│   Adapter   │─────▶│  Adaptee    │         │
+│   │ (Existing)  │      │             │      │ (Third-Party)│        │
+│   └─────────────┘      └─────────────┘      └─────────────┘         │
+│                                                                      │
+│   • Client calls Adapter's method (e.g., getJsonData)               │
+│   • Adapter calls Adaptee's method (e.g., getXmlData)               │
+│   • Adapter converts the result to what Client expects              │
+│                                                                      │
+│   ✅ Loose coupling                                                 │
+│   ✅ Open/Closed Principle                                          │
+│   ✅ Easy to swap third-party libraries                             │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 4. UML Diagram (Object Adapter)
+
+```
+                    ┌──────────────────────────────┐
+                    │      <<interface>>           │
+                    │        IReport               │
+                    ├──────────────────────────────┤
+                    │ + getJsonData(string): string│
+                    └──────────────┬───────────────┘
+                                   △
+                                   │ implements
+                    ┌──────────────┴───────────────┐
+                    │  XMLDataProviderAdapter      │
+                    ├──────────────────────────────┤
+                    │ - xmlProvider: XMLDataProvider│
+                    ├──────────────────────────────┤
+                    │ + getJsonData(string)        │
+                    └──────────────┬───────────────┘
+                                   │ has-a (composition)
+                                   ▼
+                    ┌──────────────────────────────┐
+                    │    XMLDataProvider           │
+                    ├──────────────────────────────┤
+                    │ + getXmlData(string): string │
+                    └──────────────────────────────┘
+
+   Client ─── uses ───▶ IReport
+```
+
+**Key Relationships:**
+- Adapter **implements** the Target interface (`IReport`).
+- Adapter **has-a** reference to the Adaptee (`XMLDataProvider`).
+- Client only knows about `IReport`.
+
+---
+
+## 5. Code Example: JSON vs XML
+
+### 5.1 Target Interface
+
+```cpp
+#include <iostream>
+#include <string>
+#include <sstream>
+using namespace std;
+
+// Target interface – what the client expects
+class IReport {
+public:
+    virtual string getJsonData(const string& rawData) = 0;
+    virtual ~IReport() {}
+};
+```
+
+### 5.2 Adaptee (Third-Party Library)
+
+```cpp
+// Third-party library – provides XML data
+class XMLDataProvider {
+public:
+    string getXmlData(const string& rawData) {
+        // Simulate conversion from raw string to XML
+        // Example: "Alice,42" -> "<name>Alice</name><id>42</id>"
+        size_t comma = rawData.find(',');
+        string name = rawData.substr(0, comma);
+        string id = rawData.substr(comma + 1);
+        return "<name>" + name + "</name><id>" + id + "</id>";
+    }
+};
+```
+
+### 5.3 Adapter
+
+```cpp
+// Adapter – implements IReport, wraps XMLDataProvider
+class XMLDataProviderAdapter : public IReport {
+    XMLDataProvider* xmlProvider;
+public:
+    XMLDataProviderAdapter(XMLDataProvider* provider) 
+        : xmlProvider(provider) {}
+    
+    string getJsonData(const string& rawData) override {
+        // 1. Get XML from adaptee
+        string xmlData = xmlProvider->getXmlData(rawData);
+        
+        // 2. Convert XML to JSON (simple example)
+        // Extract name and id from XML
+        size_t nameStart = xmlData.find("<name>") + 6;
+        size_t nameEnd = xmlData.find("</name>");
+        string name = xmlData.substr(nameStart, nameEnd - nameStart);
+        
+        size_t idStart = xmlData.find("<id>") + 4;
+        size_t idEnd = xmlData.find("</id>");
+        string id = xmlData.substr(idStart, idEnd - idStart);
+        
+        // 3. Return JSON
+        return "{\"name\":\"" + name + "\",\"id\":" + id + "}";
+    }
+};
+```
+
+### 5.4 Client
+
+```cpp
+// Client – only knows about IReport
+class Client {
+public:
+    void getReport(IReport* report, const string& rawData) {
+        string json = report->getJsonData(rawData);
+        cout << "JSON Data: " << json << endl;
+    }
+};
+```
+
+### 5.5 Main
+
+```cpp
+int main() {
+    // Create adaptee
+    XMLDataProvider* xmlProvider = new XMLDataProvider();
+    
+    // Create adapter with adaptee
+    IReport* adapter = new XMLDataProviderAdapter(xmlProvider);
+    
+    // Client uses adapter
+    Client client;
+    client.getReport(adapter, "Alice,42");
+    
+    // Cleanup
+    delete adapter;
+    delete xmlProvider;
+    return 0;
+}
+```
+
+**Output:**
+```
+JSON Data: {"name":"Alice","id":42}
+```
+
+---
+
+## 6. Object Adapter vs. Class Adapter
+
+### Object Adapter (Used above)
+
+- **Uses composition:** Adapter **has-a** Adaptee.
+- **Preferred approach:** Favors composition over inheritance.
+- **Works in all languages** (Java, C++, etc.).
+
+### Class Adapter
+
+- **Uses multiple inheritance:** Adapter **inherits** from both Target and Adaptee.
+- **Only possible in C++** (Java doesn't support multiple inheritance of classes).
+- **Generally discouraged** because it tightly couples the adapter to a specific adaptee class.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    CLASS ADAPTER (MULTIPLE INHERITANCE)             │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│                    ┌─────────────┐   ┌─────────────┐                │
+│                    │   Target    │   │   Adaptee   │                │
+│                    │ (interface) │   │   (class)   │                │
+│                    └──────┬──────┘   └──────┬──────┘                │
+│                           │                 │                        │
+│                           └────────┬────────┘                        │
+│                                    ▼                                 │
+│                           ┌─────────────────┐                        │
+│                           │  Class Adapter  │                        │
+│                           │ (inherits both) │                        │
+│                           └─────────────────┘                        │
+│                                                                      │
+│   ❌ Multiple inheritance (not supported in Java)                    │
+│   ❌ Tightly coupled to Adaptee                                      │
+│   ✅ Simpler if multiple inheritance is available                    │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Recommendation:** Always prefer **Object Adapter** (composition over inheritance).
+
+---
+
+## 7. How It Solves the Inheritance Problem (Simple Example)
+
+### The Problem: Class Explosion with Inheritance
+
+Suppose you have a base class `Report` and you want to support multiple data formats (JSON, XML, CSV). Using inheritance, you might create:
+
+```
+Report
+├── JSONReport
+├── XMLReport
+├── CSVReport
+└── ... (and combinations)
+```
+
+This leads to a **class explosion** when you add new formats or new data sources.
+
+### The Adapter Solution: Composition
+
+Instead of creating subclasses for each combination, the Adapter pattern uses **composition**:
+
+- `XMLDataProviderAdapter` **has-a** `XMLDataProvider` and implements `IReport`.
+- Adding a new format (e.g., CSV) means creating a new adapter, not modifying existing classes.
+- No need to change the `Client` or the existing `IReport` interface.
+
+**Simple Example: Coffee Machine**
+
+- **Inheritance approach:** You'd need `CoffeeWithMilk`, `CoffeeWithSugar`, `CoffeeWithMilkAndSugar`, etc. – class explosion.
+- **Adapter/Composition approach:** You have a `Coffee` base and a `MilkAdapter`, `SugarAdapter`. You compose them at runtime: `new SugarAdapter(new MilkAdapter(new Coffee()))`. No new classes for each combination.
+
+Thus, the Adapter pattern (specifically the Object Adapter) demonstrates **"favor composition over inheritance"** and avoids the pitfalls of deep inheritance hierarchies.
+
+---
+
+## 8. Real-World Use Cases
+
+| Use Case | Description |
+|----------|-------------|
+| **Third-Party Integration** | When integrating payment gateways, notification services, or any external library with a different interface. |
+| **Legacy Code Integration** | When a modern application must communicate with an old legacy system that uses outdated interfaces. |
+| **Data Format Conversion** | When you need to convert data from one format (XML) to another (JSON) without modifying the source. |
+| **Java I/O Streams** | `InputStreamReader` and `OutputStreamWriter` are adapters that convert byte streams to character streams. |
+| **GUI Frameworks** | Adapting different UI components to a common interface. |
+
+---
+
+## 9. Standard Definition
+
+> **"The Adapter pattern converts the interface of a class into another interface that a client expects. Adapter lets classes work together that couldn't otherwise because of incompatible interfaces."**
+
+---
+
+## 10. Key Takeaways
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    ADAPTER PATTERN — SUMMARY                        │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   🎯 PURPOSE                                                        │
+│   Allow incompatible interfaces to work together.                   │
+│                                                                      │
+│   🧩 KEY COMPONENTS                                                 │
+│   • Target (interface) – what the client expects                    │
+│   • Adaptee – the existing class with incompatible interface        │
+│   • Adapter – bridges the two, implements Target, holds Adaptee     │
+│   • Client – uses Target                                            │
+│                                                                      │
+│   ✅ BENEFITS                                                       │
+│   • Loose coupling between client and third-party code              │
+│   • Open/Closed Principle – new adapters without modifying client   │
+│   • Reusability – adapters can be reused across projects            │
+│   • Promotes composition over inheritance (Object Adapter)          │
+│                                                                      │
+│   ⚠️ TRADE-OFFS                                                     │
+│   • Adds an extra layer of indirection                              │
+│   • Slightly more classes                                           │
+│                                                                      │
+│   🌍 REAL-WORLD USES                                                │
+│   • Third-party library integration                                 │
+│   • Legacy system integration                                       │
+│   • Data format conversion                                          │
+│   • Java I/O (InputStreamReader, OutputStreamWriter)                │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### The Golden Rule
+
+> **"When you need to use an existing class but its interface doesn't match what your code expects, use the Adapter pattern."**
+
+### Interview Wisdom
+
+The Adapter pattern is **very common in LLD interviews** and real-world projects. It is the go-to solution for integrating third-party libraries, legacy code, or any incompatible interfaces. It elegantly demonstrates the principle of **"favor composition over inheritance"** through the Object Adapter variant.
+
+---
+
+## 17. Facade Design Pattern | Real-world use case + Code (18:52)
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
