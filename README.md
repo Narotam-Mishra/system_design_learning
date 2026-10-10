@@ -9871,4 +9871,557 @@ The **NotificationService** acts as a **bridge** connecting:
 
 ## 15. Command Design Pattern | Real-world use case + Code (29:54)
 
+This lecture covers the **Command Design Pattern** — a behavioral pattern that encapsulates a request as an object, thereby allowing you to parameterize clients with different requests, queue or log requests, and support undoable operations. The classic example used is a **Smart Home Automation System**.
+
+---
+
+## 1. What is Command Pattern?
+
+> **"Encapsulate a request as an object, thereby letting you parameterize clients with different requests, queue or log requests, and support undoable operations."**
+
+### Core Idea
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    COMMAND PATTERN — CORE IDEA                      │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   Instead of directly calling a method on a receiver,               │
+│   wrap the request in a Command object.                             │
+│                                                                      │
+│   Source (Invoker) ──▶ Command ──▶ Receiver                         │
+│                                                                      │
+│   • Source doesn't know Receiver                                    │
+│   • Command knows Receiver and what to do                           │
+│   • Receiver does the actual work                                   │
+│                                                                      │
+│   Benefits: Loose coupling, dynamic assignment, undo support        │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 2. The Problem: Smart Home Automation
+
+### Scenario
+
+Design a **remote control** that can control various smart home devices:
+- Light (On/Off)
+- Fan (On/Off)
+- AC (On/Off)
+
+### ❌ Naive Approach (Without Command Pattern)
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    NAIVE APPROACH — TIGHT COUPLING                  │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   ┌─────────────────────┐                                           │
+│   │      Remote         │                                           │
+│   ├─────────────────────┤                                           │
+│   │ - light: Light      │                                           │
+│   │ - fan: Fan          │                                           │
+│   │ - ac: AC            │                                           │
+│   ├─────────────────────┤                                           │
+│   │ + pressLightButton()│                                           │
+│   │ + pressFanButton()  │                                           │
+│   │ + pressACButton()   │                                           │
+│   └─────────────────────┘                                           │
+│                                                                      │
+│   Problems:                                                         │
+│   ❌ Remote is tightly coupled to concrete devices                  │
+│   ❌ Adding new device → modify Remote class                        │
+│   ❌ Violates Open/Closed Principle                                 │
+│   ❌ Cannot dynamically reassign buttons at runtime                 │
+│   ❌ No support for undo                                            │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Code Example (Bad Design):**
+
+```cpp
+class Light {
+public:
+    void on()  { cout << "Light is ON\n"; }
+    void off() { cout << "Light is OFF\n"; }
+};
+
+class Fan {
+public:
+    void on()  { cout << "Fan is ON\n"; }
+    void off() { cout << "Fan is OFF\n"; }
+};
+
+class Remote {
+    Light* light;
+    Fan* fan;
+public:
+    Remote(Light* l, Fan* f) : light(l), fan(f) {}
+    
+    void pressLightButton() { light->on(); }
+    void pressFanButton()   { fan->on(); }
+};
+```
+
+**Problem:** If you want to change a button to control a different device, you must modify the `Remote` class.
+
+---
+
+## 3. The Solution: Command Pattern
+
+### Key Insight
+
+Introduce a **Command** object between the **Invoker** (Remote) and the **Receiver** (Light/Fan). The invoker calls `execute()` on the command, which then calls the appropriate method on the receiver.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    COMMAND PATTERN SOLUTION                         │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   ┌─────────────┐      ┌─────────────┐      ┌─────────────┐         │
+│   │   Remote    │─────▶│   Command   │─────▶│  Receiver   │         │
+│   │ (Invoker)   │      │  (Object)   │      │ (Light/Fan) │         │
+│   └─────────────┘      └─────────────┘      └─────────────┘         │
+│                                                                      │
+│   Remote only knows Command interface                                │
+│   Command knows which Receiver to call and how                      │
+│   Receiver does the actual work                                     │
+│                                                                      │
+│   ✅ Loose coupling                                                 │
+│   ✅ Dynamic assignment                                             │
+│   ✅ Open/Closed Principle                                          │
+│   ✅ Undo support                                                   │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 4. UML Design
+
+### 4.1 Components
+
+```
+                    ┌──────────────────────────────┐
+                    │      <<interface>>           │
+                    │       ICommand               │
+                    ├──────────────────────────────┤
+                    │ + execute(): void = 0        │
+                    │ + undo(): void = 0           │
+                    └──────────────┬───────────────┘
+                                   △
+                    ┌──────────────┴───────────────┐
+                    │                              │
+                    ▼                              ▼
+       ┌────────────────────────┐    ┌─────────────────────────────┐
+       │    LightCommand        │    │      FanCommand             │
+       ├────────────────────────┤    ├─────────────────────────────┤
+       │ - light: Light*        │    │ - fan: Fan*                 │
+       ├────────────────────────┤    ├─────────────────────────────┤
+       │ + execute()            │    │ + execute()                 │
+       │ + undo()               │    │ + undo()                    │
+       └────────────────────────┘    └─────────────────────────────┘
+                    │                              │
+                    │ has-a                        │ has-a
+                    ▼                              ▼
+       ┌────────────────────────┐    ┌─────────────────────────────┐
+       │        Light           │    │           Fan               │
+       ├────────────────────────┤    ├─────────────────────────────┤
+       │ + on()                 │    │ + on()                      │
+       │ + off()                │    │ + off()                     │
+       └────────────────────────┘    └─────────────────────────────┘
+
+                    ┌──────────────────────────────┐
+                    │          Remote              │
+                    ├──────────────────────────────┤
+                    │ - commands: ICommand*[]      │
+                    │ - pressed: bool[]            │
+                    ├──────────────────────────────┤
+                    │ + setCommand(idx, ICommand*) │
+                    │ + pressButton(idx)           │
+                    └──────────────────────────────┘
+                                   │ has-a (1..*)
+                                   ▼
+                              ICommand
+```
+
+### 4.2 Key Relationships
+
+- **Remote** HAS-A `ICommand` (array of commands)
+- **LightCommand** HAS-A `Light` (concrete receiver)
+- **LightCommand** IS-A `ICommand` (inheritance)
+- **ICommand** defines `execute()` and `undo()`
+
+---
+
+## 5. Code Implementation
+
+### 5.1 Interfaces and Receivers
+
+```cpp
+#include <iostream>
+#include <vector>
+#include <string>
+using namespace std;
+
+// ============ COMMAND INTERFACE ============
+class ICommand {
+public:
+    virtual void execute() = 0;
+    virtual void undo() = 0;
+    virtual ~ICommand() {}
+};
+
+// ============ RECEIVERS ============
+class Light {
+    string name;
+public:
+    Light(string n) : name(n) {}
+    void on()  { cout << name << " Light is ON\n"; }
+    void off() { cout << name << " Light is OFF\n"; }
+};
+
+class Fan {
+    string name;
+public:
+    Fan(string n) : name(n) {}
+    void on()  { cout << name << " Fan is ON\n"; }
+    void off() { cout << name << " Fan is OFF\n"; }
+};
+```
+
+### 5.2 Concrete Commands
+
+```cpp
+// ============ LIGHT COMMAND ============
+class LightCommand : public ICommand {
+    Light* light;
+public:
+    LightCommand(Light* l) : light(l) {}
+    
+    void execute() override { light->on(); }
+    void undo() override    { light->off(); }
+};
+
+// ============ FAN COMMAND ============
+class FanCommand : public ICommand {
+    Fan* fan;
+public:
+    FanCommand(Fan* f) : fan(f) {}
+    
+    void execute() override { fan->on(); }
+    void undo() override    { fan->off(); }
+};
+```
+
+### 5.3 Invoker (Remote Control)
+
+```cpp
+// ============ REMOTE CONTROL ============
+class Remote {
+    static const int NUM_BUTTONS = 4;
+    ICommand* commands[NUM_BUTTONS];
+    bool pressed[NUM_BUTTONS];
+    
+public:
+    Remote() {
+        for (int i = 0; i < NUM_BUTTONS; i++) {
+            commands[i] = nullptr;
+            pressed[i] = false;
+        }
+    }
+    
+    void setCommand(int idx, ICommand* cmd) {
+        if (idx < 0 || idx >= NUM_BUTTONS) return;
+        if (commands[idx]) delete commands[idx];
+        commands[idx] = cmd;
+        pressed[idx] = false;
+    }
+    
+    void pressButton(int idx) {
+        if (idx < 0 || idx >= NUM_BUTTONS || commands[idx] == nullptr) {
+            cout << "No command assigned at button " << idx << "\n";
+            return;
+        }
+        
+        if (!pressed[idx]) {
+            commands[idx]->execute();
+            pressed[idx] = true;
+        } else {
+            commands[idx]->undo();
+            pressed[idx] = false;
+        }
+    }
+    
+    ~Remote() {
+        for (int i = 0; i < NUM_BUTTONS; i++) {
+            delete commands[i];
+        }
+    }
+};
+```
+
+### 5.4 Main (Client)
+
+```cpp
+int main() {
+    // Create receivers
+    Light* livingRoomLight = new Light("Living Room");
+    Fan* ceilingFan = new Fan("Ceiling");
+    
+    // Create remote
+    Remote* remote = new Remote();
+    
+    // Assign commands to buttons
+    remote->setCommand(0, new LightCommand(livingRoomLight));
+    remote->setCommand(1, new FanCommand(ceilingFan));
+    
+    // Simulate pressing buttons
+    cout << "--- Pressing Button 0 (Light) ---\n";
+    remote->pressButton(0);  // Light ON
+    remote->pressButton(0);  // Light OFF (undo)
+    
+    cout << "\n--- Pressing Button 1 (Fan) ---\n";
+    remote->pressButton(1);  // Fan ON
+    remote->pressButton(1);  // Fan OFF (undo)
+    
+    cout << "\n--- Pressing Button 2 (Unassigned) ---\n";
+    remote->pressButton(2);  // No command assigned
+    
+    // Cleanup
+    delete remote;
+    delete livingRoomLight;
+    delete ceilingFan;
+    return 0;
+}
+```
+
+### 5.5 Output
+
+```
+--- Pressing Button 0 (Light) ---
+Living Room Light is ON
+Living Room Light is OFF
+
+--- Pressing Button 1 (Fan) ---
+Ceiling Fan is ON
+Ceiling Fan is OFF
+
+--- Pressing Button 2 (Unassigned) ---
+No command assigned at button 2
+```
+
+---
+
+## 6. Undo Functionality
+
+The pattern naturally supports undo by having each command implement both `execute()` and `undo()`. The invoker can track the state (e.g., `pressed` array) to decide whether to execute or undo.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    UNDO MECHANISM                                   │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   Button pressed?    → Action                                       │
+│   ────────────────    ────────                                      │
+│   false               → execute()                                   │
+│   true                → undo()                                      │
+│                                                                      │
+│   Each command knows:                                               │
+│   • execute() → light.on(), fan.on(), etc.                          │
+│   • undo()    → light.off(), fan.off(), etc.                        │
+│                                                                      │
+│   For more complex operations (e.g., text editor), you can store    │
+│   previous state or use a stack of commands to undo multiple steps. │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 7. Why Concrete Command Holds Concrete Receiver (LSP Discussion)
+
+A common question: **Why doesn't `ICommand` have a `has-a` relationship with a general `Appliance` interface? Why do concrete commands hold concrete receivers?**
+
+**Answer:**
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    LSP AND RECEIVER DESIGN                          │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   If we tried to use a general Appliance interface:                 │
+│                                                                      │
+│   class Appliance {                                                 │
+│       virtual void on() = 0;                                        │
+│       virtual void off() = 0;                                       │
+│   };                                                                │
+│                                                                      │
+│   class Light : public Appliance { ... };                           │
+│   class Fan : public Appliance { ... };                             │
+│   class AC : public Appliance {                                     │
+│       void on() override;                                           │
+│       void off() override;                                          │
+│       void setTemperature(int) ;  // extra methods!                 │
+│       void setTimer(int);                                           │
+│   };                                                                │
+│                                                                      │
+│   ❌ Problem: AC has many features beyond on/off.                   │
+│   ❌ The Appliance interface cannot capture all of them.            │
+│   ❌ LSP violation: AC is not fully substitutable for Appliance     │
+│      because it has extra behavior and constraints.                 │
+│                                                                      │
+│   ✅ Solution: Concrete commands hold concrete receivers.           │
+│   • LightCommand knows Light and uses its on/off.                   │
+│   • FanCommand knows Fan and uses its on/off.                       │
+│   • ACCommand would know AC and use all its specific methods.       │
+│                                                                      │
+│   This keeps the Command interface simple (execute/undo)            │
+│   and avoids forcing a one-size-fits-all Appliance interface.       │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+This design choice avoids LSP violations and keeps the system flexible.
+
+---
+
+## 8. Real-World Use Cases
+
+| Use Case | How Command Pattern Helps |
+|----------|---------------------------|
+| **Text Editors / IDEs** | Undo/Redo operations (Ctrl+Z, Ctrl+Y) |
+| **Photoshop / Image Editors** | Undo/Redo of filters, transformations |
+| **Keyboard Shortcuts** | Assign commands to keys dynamically |
+| **Smart Home Automation** | Remote controls with configurable buttons |
+| **Transaction Systems** | Rollback on failure |
+| **GUI Buttons** | Each button triggers a command object |
+| **Job Queues / Task Schedulers** | Queue commands for later execution |
+| **Macro Recording** | Record sequence of commands and replay |
+
+---
+
+## 9. How Command Pattern Solves Inheritance Problems (Simple Example)
+
+### The Inheritance Problem: Class Explosion
+
+Suppose you want to support multiple devices and multiple actions. Using inheritance, you might create:
+
+```
+Remote
+├── LightRemote
+├── FanRemote
+├── ACRemote
+├── LightAndFanRemote
+├── LightAndACRemote
+└── ... (combinatorial explosion)
+```
+
+**This is the same class explosion problem seen in the Decorator pattern.**
+
+### Command Pattern Solution: Composition Over Inheritance
+
+Instead of creating subclasses for every combination, the `Remote` **has-a** collection of `Command` objects. Each command **has-a** receiver.
+
+```
+Remote HAS-A ICommand[]
+LightCommand HAS-A Light
+FanCommand HAS-A Fan
+```
+
+**Benefits:**
+- **No class explosion** — N commands instead of 2^N subclasses
+- **Runtime flexibility** — Assign commands dynamically
+- **Open/Closed** — New commands don't modify Remote
+- **Single Responsibility** — Each command handles one action
+
+### Simple Example: Coffee Machine
+
+**❌ Inheritance Approach:**
+```
+CoffeeMachine
+├── CoffeeWithMilk
+├── CoffeeWithSugar
+├── CoffeeWithMilkAndSugar
+└── ... (explosion)
+```
+
+**✅ Command Pattern Approach:**
+```
+ICommand
+├── AddMilkCommand
+├── AddSugarCommand
+└── ...
+
+CoffeeMachine (Invoker) has-a list of commands
+```
+You can execute any combination at runtime without new classes.
+
+---
+
+## 10. Definition and Key Takeaways
+
+### Official Definition
+
+> **"Encapsulate a request as an object, thereby letting you parameterize clients with different requests, queue or log requests, and support undoable operations."**
+
+### Key Takeaways
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    COMMAND PATTERN — SUMMARY                        │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   🎯 PURPOSE                                                        │
+│   Encapsulate a request as an object, decoupling the invoker        │
+│   from the receiver.                                                │
+│                                                                      │
+│   🧩 KEY COMPONENTS                                                 │
+│   • Command (interface) — declares execute() and undo()             │
+│   • ConcreteCommand — binds a Receiver to an action                 │
+│   • Receiver — knows how to perform the work                        │
+│   • Invoker — asks the command to carry out the request             │
+│   • Client — creates commands and sets their receivers              │
+│                                                                      │
+│   ✅ BENEFITS                                                       │
+│   • Loose coupling between invoker and receiver                     │
+│   • Dynamic assignment of commands                                  │
+│   • Supports undo/redo                                              │
+│   • Open/Closed Principle                                           │
+│   • No class explosion (composition over inheritance)               │
+│                                                                      │
+│   ⚠️ TRADE-OFFS                                                     │
+│   • More classes (one per command)                                  │
+│   • Slightly more complex to set up                                 │
+│                                                                      │
+│   🌍 REAL-WORLD USES                                                │
+│   • Undo/Redo in editors                                            │
+│   • Keyboard shortcuts                                              │
+│   • Smart home remotes                                              │
+│   • Transaction rollback                                            │
+│   • Task queues                                                     │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### The Golden Rule
+
+> **"When you need to parameterize objects with operations, queue operations, or support undo, use the Command Pattern."**
+
+### Interview Wisdom
+
+The Command Pattern is **very common in LLD interviews** and real-world applications. It's the go-to pattern for any system requiring:
+- Undo/Redo
+- Configurable buttons/shortcuts
+- Decoupling request senders from receivers
+
+It elegantly demonstrates **composition over inheritance** and helps avoid class explosion.
+
+---
+
+## 16. Adapter Design Pattern | Real-world use case + Code (21:52)
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
