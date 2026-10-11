@@ -11220,4 +11220,1020 @@ The Facade pattern is **simple yet powerful**. It is frequently used in LLD inte
 
 ## 18. Build Spotify, Music Player App (1:15:00)
 
+This lecture is a complete LLD interview walkthrough for designing a **Music Player Application**. It demonstrates how multiple design patterns interact in a real-world application and covers requirements gathering, UML design, code implementation, and working demo.
+
+---
+
+## 1. Requirements Gathering
+
+### Functional Requirements
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    MUSIC PLAYER — FUNCTIONAL REQUIREMENTS           │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   ✅ Play / Pause Songs                                             │
+│                                                                      │
+│   ✅ Create Playlists                                               │
+│      • Add songs to playlist                                        │
+│      • Play entire playlist                                         │
+│                                                                      │
+│   ✅ Multiple Playback Strategies                                   │
+│      • Sequential — one after another                               │
+│      • Random — shuffle mode                                        │
+│      • Custom — user adds songs to queue manually                   │
+│      • Extensible — new algorithms can be added                     │
+│                                                                      │
+│   ✅ Multiple Output Devices                                        │
+│      • Bluetooth Speaker                                            │
+│      • Wired Speaker                                                │
+│      • Headphones                                                   │
+│      • Extensible for new devices                                   │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Non-Functional Requirements
+
+- Highly scalable and extendable
+- Clean, maintainable code
+- Follow SOLID principles
+- Plug-and-play integrations
+
+---
+
+## 2. Design Patterns Used
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    PATTERNS IN MUSIC PLAYER                         │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   ┌──────────────────────┐                                          │
+│   │  ADAPTER PATTERN     │  → Integrate third-party output APIs     │
+│   │                      │    (Bluetooth, Wired, Headphones)        │
+│   └──────────────────────┘                                          │
+│                                                                      │
+│   ┌──────────────────────┐                                          │
+│   │  STRATEGY PATTERN    │  → Different playback algorithms         │
+│   │                      │    (Sequential, Random, Custom)          │
+│   └──────────────────────┘                                          │
+│                                                                      │
+│   ┌──────────────────────┐                                          │
+│   │  FACTORY PATTERN     │  → Create devices dynamically            │
+│   │                      │    (DeviceFactory)                       │
+│   └──────────────────────┘                                          │
+│                                                                      │
+│   ┌──────────────────────┐                                          │
+│   │  SINGLETON PATTERN   │  → All managers are Singletons           │
+│   │                      │    (DeviceManager, PlaylistManager,      │
+│   │                      │     PlayStrategyManager, MusicPlayerFacade)│
+│   └──────────────────────┘                                          │
+│                                                                      │
+│   ┌──────────────────────┐                                          │
+│   │  FACADE PATTERN      │  → Simplify entire subsystem for client  │
+│   │                      │    (MusicPlayerFacade)                   │
+│   └──────────────────────┘                                          │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 3. Happy Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    HAPPY FLOW                                       │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   User opens app                                                    │
+│      │                                                              │
+│      ▼                                                              │
+│   Connect an output device (Bluetooth/Wired/Headphones)             │
+│      │                                                              │
+│      ▼                                                              │
+│   Play / Pause a song                                               │
+│      │                                                              │
+│      ▼                                                              │
+│   Create a playlist → Add songs to it                               │
+│      │                                                              │
+│      ▼                                                              │
+│   Select playback strategy (Sequential/Random/Custom)               │
+│      │                                                              │
+│      ▼                                                              │
+│   Play entire playlist / Next / Previous                            │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 4. UML Design (Bottom-Up Approach)
+
+### 4.1 Song (Model)
+
+```
+┌──────────────────────────────────┐
+│              Song                │
+├──────────────────────────────────┤
+│ - title: string                  │
+│ - artist: string                 │
+│ - filePath: string               │
+├──────────────────────────────────┤
+│ + getters() / setters()          │
+└──────────────────────────────────┘
+```
+
+### 4.2 Playlist (Model)
+
+```
+┌──────────────────────────────────┐
+│            Playlist              │
+├──────────────────────────────────┤
+│ - name: string                   │
+│ - songs: vector<Song>            │
+├──────────────────────────────────┤
+│ + addSong(Song)                  │
+│ + getSongs(): vector<Song>       │
+│ + getName(): string              │
+└──────────────────────────────────┘
+```
+
+### 4.3 Output Device Hierarchy (Adapter Pattern)
+
+```
+                    ┌──────────────────────────────┐
+                    │      <<interface>>           │
+                    │    IAudioOutputDevice        │
+                    ├──────────────────────────────┤
+                    │ + playAudio(Song*): void = 0 │
+                    └──────────────┬───────────────┘
+                                   △
+              ┌────────────────────┼────────────────────┐
+              │                    │                    │
+     ┌────────┴────────┐ ┌─────────┴────────┐ ┌────────┴────────┐
+     │BluetoothSpeaker │ │  WiredSpeaker    │ │  Headphones     │
+     │    Adapter      │ │    Adapter       │ │    Adapter      │
+     ├─────────────────┤ ├──────────────────┤ ├─────────────────┤
+     │ - api: BT API*  │ │ - api: Wired*    │ │ - api: Headph*  │
+     │ + playAudio()   │ │ + playAudio()    │ │ + playAudio()   │
+     └────────┬────────┘ └────────┬─────────┘ └────────┬────────┘
+              │                   │                    │
+              ▼                   ▼                    ▼
+    ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
+    │  External APIs  │ │  External APIs  │ │  External APIs  │
+    │ (Third-Party)   │ │ (Third-Party)   │ │ (Third-Party)   │
+    └─────────────────┘ └─────────────────┘ └─────────────────┘
+```
+
+**Key Relationship:** Adapter **IS-A** `IAudioOutputDevice` AND **HAS-A** external third-party API.
+
+### 4.4 Audio Engine
+
+```
+┌──────────────────────────────────────┐
+│            AudioEngine               │
+├──────────────────────────────────────┤
+│ - currentSong: Song*                 │
+│ - isSongPaused: bool                 │
+├──────────────────────────────────────┤
+│ + play(IAudioOutputDevice*, Song*)   │
+│ + pause()                            │
+│ + getCurrentSongTitle(): string      │
+│ + isPaused(): bool                   │
+└──────────────────────────────────────┘
+```
+
+### 4.5 Playing Strategy Hierarchy (Strategy Pattern)
+
+```
+                    ┌──────────────────────────────┐
+                    │      <<interface>>           │
+                    │    IPlayingStrategy          │
+                    ├──────────────────────────────┤
+                    │ + setPlaylist(Playlist*) = 0 │
+                    │ + next(): Song = 0           │
+                    │ + previous(): Song = 0       │
+                    │ + hasNext(): bool = 0        │
+                    │ + hasPrevious(): bool = 0    │
+                    │ + addToNext(Song): void {}   │
+                    └──────────────┬───────────────┘
+                                   △
+              ┌────────────────────┼────────────────────┐
+              │                    │                    │
+     ┌────────┴────────┐ ┌─────────┴────────┐ ┌────────┴────────┐
+     │  Sequential     │ │    Random        │ │    Custom       │
+     │  Strategy       │ │    Strategy      │ │    Strategy     │
+     ├─────────────────┤ ├──────────────────┤ ├─────────────────┤
+     │ - currentIndex  │ │ - remainingSongs │ │ - nextQueue     │
+     │                 │ │ - history (stack)│ │ - history (stack)│
+     ├─────────────────┤ ├──────────────────┤ ├─────────────────┤
+     │ + next()        │ │ + next()         │ │ + next()        │
+     │ + previous()    │ │ + previous()     │ │ + previous()    │
+     │ + hasNext()     │ │ + hasNext()      │ │ + addToNext()   │
+     └─────────────────┘ └──────────────────┘ └─────────────────┘
+```
+
+### 4.6 Factory for Devices
+
+```
+                    ┌──────────────────────────────┐
+                    │      <<interface>>           │
+                    │      IDeviceFactory          │
+                    ├──────────────────────────────┤
+                    │ + createDevice(DeviceType)   │
+                    │   : IAudioOutputDevice*      │
+                    └──────────────┬───────────────┘
+                                   △
+                                   │ implements
+                    ┌──────────────┴───────────────┐
+                    │      DeviceFactory           │
+                    ├──────────────────────────────┤
+                    │ + createDevice(DeviceType)   │
+                    └──────────────────────────────┘
+                                   │ has-a
+                                   ▼
+                    ┌──────────────────────────────┐
+                    │   Concrete Output Devices    │
+                    │ (Bluetooth, Wired, Headphone)│
+                    └──────────────────────────────┘
+```
+
+### 4.7 Managers (All Singletons)
+
+```
+┌─────────────────────────┐  ┌─────────────────────────┐
+│    DeviceManager        │  │   PlaylistManager       │
+│    <<singleton>>        │  │   <<singleton>>         │
+├─────────────────────────┤  ├─────────────────────────┤
+│ - currentOutputDevice   │  │ - playlists:            │
+│ - deviceFactory         │  │   map<string, Playlist> │
+├─────────────────────────┤  ├─────────────────────────┤
+│ + connect(DeviceType)   │  │ + createPlaylist(name)  │
+│ + getOutputDevice()     │  │ + addSongToPlaylist()   │
+│ + hasOutputDevice()     │  │ + getPlaylist(name)     │
+└─────────────────────────┘  └─────────────────────────┘
+
+┌─────────────────────────┐
+│  PlayStrategyManager    │
+│  <<singleton>>          │
+├─────────────────────────┤
+│ - sequentialStrategy    │
+│ - randomStrategy        │
+│ - customStrategy        │
+├─────────────────────────┤
+│ + getStrategy(StrategyType):│
+│   IPlayingStrategy*     │
+└─────────────────────────┘
+```
+
+### 4.8 Music Player Facade (Facade + Singleton)
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    MusicPlayerFacade                          │
+│                       <<singleton>>                           │
+├──────────────────────────────────────────────────────────────┤
+│ - audioEngine: AudioEngine*                                   │
+│ - currentPlaylist: Playlist*                                  │
+│ - currentStrategy: IPlayingStrategy*                          │
+│ - deviceManager: DeviceManager*                               │
+│ - playlistManager: PlaylistManager*                           │
+│ - strategyManager: PlayStrategyManager*                       │
+├──────────────────────────────────────────────────────────────┤
+│ + connectDevice(DeviceType)                                   │
+│ + setStrategy(StrategyType)                                   │
+│ + loadPlaylist(string)                                        │
+│ + playSong(Song*)                                             │
+│ + pauseSong()                                                 │
+│ + playAllTracks()                                             │
+│ + playNextTrack()                                             │
+│ + playPreviousTrack()                                         │
+│ + enqueueNext(Song*)                                          │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### 4.9 Music Player App (Orchestrator / Client Entry Point)
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    MusicPlayerApp                             │
+├──────────────────────────────────────────────────────────────┤
+│ - allSongs: vector<Song>                                      │
+│ - facade: MusicPlayerFacade*                                  │
+├──────────────────────────────────────────────────────────────┤
+│ + createSong(title, artist, path)                             │
+│ + findSongByTitle(title)                                      │
+│ + createPlaylist(name)                                        │
+│ + addSongToPlaylist(playlistName, song)                       │
+│ + connectAudioDevice(DeviceType)                              │
+│ + selectPlayStrategy(StrategyType)                            │
+│ + loadPlaylist(name)                                          │
+│ + playSong(title)                                             │
+│ + pauseSong()                                                 │
+│ + playAllTracks()                                             │
+│ + playNextTrack()                                             │
+│ + playPreviousTrack()                                         │
+│ + enqueueNextSong(song)                                       │
+└──────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 5. Complete UML Relationship Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    MUSIC PLAYER — COMPLETE ARCHITECTURE                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌──────────────────┐                                                        │
+│  │  MusicPlayerApp  │  (Client / Orchestrator)                              │
+│  └────────┬─────────┘                                                        │
+│           │ uses                                                             │
+│           ▼                                                                  │
+│  ┌──────────────────┐        ┌──────────────────┐                           │
+│  │MusicPlayerFacade │───────▶│  AudioEngine     │                           │
+│  │   <<singleton>>  │        └──────────────────┘                           │
+│  └────────┬─────────┘                                                        │
+│           │                                                                  │
+│     ┌─────┼──────────────┬──────────────────┐                               │
+│     │     │              │                  │                               │
+│     ▼     ▼              ▼                  ▼                               │
+│ ┌───────┐ ┌───────────┐ ┌──────────────┐ ┌────────────────┐               │
+│ │Device │ │Playlist   │ │PlayStrategy  │ │IPlayingStrategy│               │
+│ │Manager│ │Manager    │ │Manager       │ │ (interface)    │               │
+│ │<<S>>  │ │<<S>>      │ │<<S>>         │ └───────┬────────┘               │
+│ └───┬───┘ └─────┬─────┘ └──────┬───────┘         △                        │
+│     │           │              │           ┌──────┼──────┐                │
+│     ▼           ▼              ▼           ▼      ▼      ▼                │
+│ ┌───────┐ ┌───────────┐ ┌───────────┐ Sequential Random Custom            │
+│ │Device │ │Playlist   │ │Strategies │                                     │
+│ │Factory│ │(map)      │ │           │                                     │
+│ └───┬───┘ └───────────┘ └───────────┘                                     │
+│     │                                                                       │
+│     ▼                                                                       │
+│ ┌───────────────────────┐                                                   │
+│ │IAudioOutputDevice     │                                                   │
+│ │  <<interface>>        │                                                   │
+│ └───────────┬───────────┘                                                   │
+│             △                                                               │
+│    ┌────────┼────────────┐                                                  │
+│    ▼        ▼            ▼                                                  │
+│ Bluetooth  Wired      Headphones                                            │
+│ Adapter    Adapter    Adapter                                               │
+│    │        │            │                                                  │
+│    ▼        ▼            ▼                                                  │
+│ ┌─────────────────────────────────┐                                         │
+│ │   External Third-Party APIs     │                                         │
+│ └─────────────────────────────────┘                                         │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 6. Key Code Implementations
+
+### 6.1 Output Device Interface + Adapters
+
+```cpp
+// Interface
+class IAudioOutputDevice {
+public:
+    virtual void playAudio(Song* song) = 0;
+    virtual ~IAudioOutputDevice() {}
+};
+
+// External third-party APIs
+class BluetoothSpeakerAPI {
+public:
+    void playSoundViaBluetooth(const string& data) {
+        cout << "Playing via Bluetooth: " << data << "\n";
+    }
+};
+
+class WiredSpeakerAPI {
+public:
+    void playSoundViaWired(const string& data) {
+        cout << "Playing via Wired Speaker: " << data << "\n";
+    }
+};
+
+class HeadphonesAPI {
+public:
+    void playSoundViaJack(const string& data) {
+        cout << "Playing via Headphones: " << data << "\n";
+    }
+};
+
+// Adapters
+class BluetoothSpeakerAdapter : public IAudioOutputDevice {
+    BluetoothSpeakerAPI* api;
+public:
+    BluetoothSpeakerAdapter(BluetoothSpeakerAPI* a) : api(a) {}
+    void playAudio(Song* song) override {
+        api->playSoundViaBluetooth(song->getTitle());
+    }
+};
+
+class WiredSpeakerAdapter : public IAudioOutputDevice {
+    WiredSpeakerAPI* api;
+public:
+    WiredSpeakerAdapter(WiredSpeakerAPI* a) : api(a) {}
+    void playAudio(Song* song) override {
+        api->playSoundViaWired(song->getTitle());
+    }
+};
+
+class HeadphonesAdapter : public IAudioOutputDevice {
+    HeadphonesAPI* api;
+public:
+    HeadphonesAdapter(HeadphonesAPI* a) : api(a) {}
+    void playAudio(Song* song) override {
+        api->playSoundViaJack(song->getTitle());
+    }
+};
+```
+
+### 6.2 Audio Engine
+
+```cpp
+class AudioEngine {
+    Song* currentSong;
+    bool isSongPaused;
+
+public:
+    AudioEngine() : currentSong(nullptr), isSongPaused(false) {}
+
+    void play(IAudioOutputDevice* device, Song* song) {
+        if (song == nullptr) {
+            throw runtime_error("Cannot play null song");
+        }
+        if (currentSong == song && isSongPaused) {
+            isSongPaused = false;
+            cout << "Resuming: " << song->getTitle() << "\n";
+            device->playAudio(song);
+            return;
+        }
+        currentSong = song;
+        isSongPaused = false;
+        device->playAudio(song);
+    }
+
+    void pause() {
+        if (currentSong == nullptr) {
+            throw runtime_error("No song is currently playing");
+        }
+        if (isSongPaused) {
+            cout << "Song is already paused\n";
+            return;
+        }
+        isSongPaused = true;
+        cout << "Paused: " << currentSong->getTitle() << "\n";
+    }
+
+    string getCurrentSongTitle() {
+        return currentSong ? currentSong->getTitle() : "";
+    }
+
+    bool isPaused() { return isSongPaused; }
+};
+```
+
+### 6.3 Playing Strategy Interface + Implementations
+
+```cpp
+// Interface
+class IPlayingStrategy {
+public:
+    virtual void setPlaylist(Playlist* playlist) = 0;
+    virtual Song next() = 0;
+    virtual Song previous() = 0;
+    virtual bool hasNext() = 0;
+    virtual bool hasPrevious() = 0;
+    virtual void addToNext(Song song) {}  // Empty default
+    virtual ~IPlayingStrategy() {}
+};
+
+// Sequential Strategy
+class SequentialPlayingStrategy : public IPlayingStrategy {
+    Playlist* currentPlaylist;
+    int currentIndex;
+
+public:
+    SequentialPlayingStrategy() : currentPlaylist(nullptr), currentIndex(-1) {}
+
+    void setPlaylist(Playlist* p) override {
+        currentPlaylist = p;
+        currentIndex = -1;
+    }
+
+    Song next() override {
+        if (!hasNext()) throw runtime_error("No next song");
+        currentIndex++;
+        return currentPlaylist->getSongs()[currentIndex];
+    }
+
+    Song previous() override {
+        if (!hasPrevious()) throw runtime_error("No previous song");
+        currentIndex--;
+        return currentPlaylist->getSongs()[currentIndex];
+    }
+
+    bool hasNext() override {
+        return currentPlaylist &&
+               currentIndex + 1 < (int)currentPlaylist->getSongs().size();
+    }
+
+    bool hasPrevious() override {
+        return currentPlaylist && currentIndex - 1 >= 0;
+    }
+};
+
+// Random Strategy
+class RandomPlayingStrategy : public IPlayingStrategy {
+    Playlist* currentPlaylist;
+    vector<Song> remainingSongs;
+    stack<Song> history;
+
+public:
+    void setPlaylist(Playlist* p) override {
+        currentPlaylist = p;
+        remainingSongs = p->getSongs();
+        while (!history.empty()) history.pop();
+    }
+
+    Song next() override {
+        if (remainingSongs.empty()) throw runtime_error("No more songs");
+        int idx = rand() % remainingSongs.size();
+        Song selected = remainingSongs[idx];
+        remainingSongs.erase(remainingSongs.begin() + idx);
+        history.push(selected);
+        return selected;
+    }
+
+    Song previous() override {
+        if (history.empty()) throw runtime_error("No previous song");
+        Song last = history.top();
+        history.pop();
+        remainingSongs.push_back(last);
+        return last;
+    }
+
+    bool hasNext() override { return !remainingSongs.empty(); }
+    bool hasPrevious() override { return !history.empty(); }
+};
+
+// Custom Strategy
+class CustomQueueStrategy : public IPlayingStrategy {
+    Playlist* currentPlaylist;
+    queue<Song> nextQueue;
+    stack<Song> history;
+
+public:
+    void setPlaylist(Playlist* p) override {
+        currentPlaylist = p;
+        while (!nextQueue.empty()) nextQueue.pop();
+        while (!history.empty()) history.pop();
+    }
+
+    void addToNext(Song song) override {
+        nextQueue.push(song);
+    }
+
+    Song next() override {
+        if (!nextQueue.empty()) {
+            Song selected = nextQueue.front();
+            nextQueue.pop();
+            history.push(selected);
+            return selected;
+        }
+        // Fall back to sequential
+        if (currentPlaylist) {
+            for (auto& s : currentPlaylist->getSongs()) {
+                if (findInHistory(s)) continue;
+                history.push(s);
+                return s;
+            }
+        }
+        throw runtime_error("No songs available");
+    }
+
+    Song previous() override {
+        if (history.empty()) throw runtime_error("No previous song");
+        Song last = history.top();
+        history.pop();
+        return last;
+    }
+
+    bool hasNext() override {
+        return !nextQueue.empty() || currentPlaylist != nullptr;
+    }
+
+    bool hasPrevious() override { return !history.empty(); }
+
+private:
+    bool findInHistory(const Song& s) {
+        stack<Song> temp = history;
+        while (!temp.empty()) {
+            if (temp.top().getTitle() == s.getTitle()) return true;
+            temp.pop();
+        }
+        return false;
+    }
+};
+```
+
+### 6.4 Device Factory
+
+```cpp
+enum class DeviceType { BLUETOOTH, WIRED, HEADPHONES };
+enum class StrategyType { SEQUENTIAL, RANDOM, CUSTOM };
+
+class DeviceFactory {
+public:
+    static IAudioOutputDevice* createDevice(DeviceType type) {
+        if (type == DeviceType::BLUETOOTH)
+            return new BluetoothSpeakerAdapter(new BluetoothSpeakerAPI());
+        if (type == DeviceType::WIRED)
+            return new WiredSpeakerAdapter(new WiredSpeakerAPI());
+        if (type == DeviceType::HEADPHONES)
+            return new HeadphonesAdapter(new HeadphonesAPI());
+        throw runtime_error("Invalid device type");
+    }
+};
+```
+
+### 6.5 Device Manager (Singleton)
+
+```cpp
+class DeviceManager {
+    static DeviceManager* instance;
+    IAudioOutputDevice* currentOutputDevice;
+    DeviceFactory* factory;
+
+    DeviceManager() : currentOutputDevice(nullptr) {}
+
+public:
+    static DeviceManager* getInstance() {
+        if (instance == nullptr) instance = new DeviceManager();
+        return instance;
+    }
+
+    void connect(DeviceType type) {
+        if (currentOutputDevice) delete currentOutputDevice;
+        currentOutputDevice = factory->createDevice(type);
+        cout << "Device connected\n";
+    }
+
+    IAudioOutputDevice* getOutputDevice() { return currentOutputDevice; }
+    bool hasOutputDevice() { return currentOutputDevice != nullptr; }
+};
+
+DeviceManager* DeviceManager::instance = nullptr;
+```
+
+### 6.6 Playlist Manager (Singleton)
+
+```cpp
+class PlaylistManager {
+    static PlaylistManager* instance;
+    map<string, Playlist*> playlists;
+
+    PlaylistManager() {}
+
+public:
+    static PlaylistManager* getInstance() {
+        if (instance == nullptr) instance = new PlaylistManager();
+        return instance;
+    }
+
+    void createPlaylist(string name) {
+        if (playlists.find(name) != playlists.end())
+            throw runtime_error("Playlist already exists");
+        playlists[name] = new Playlist(name);
+    }
+
+    void addSongToPlaylist(string name, Song song) {
+        if (playlists.find(name) == playlists.end())
+            throw runtime_error("Playlist not found");
+        playlists[name]->addSong(song);
+    }
+
+    Playlist* getPlaylist(string name) {
+        if (playlists.find(name) == playlists.end())
+            throw runtime_error("Playlist not found");
+        return playlists[name];
+    }
+};
+
+PlaylistManager* PlaylistManager::instance = nullptr;
+```
+
+### 6.7 Play Strategy Manager (Singleton)
+
+```cpp
+class PlayStrategyManager {
+    static PlayStrategyManager* instance;
+    SequentialPlayingStrategy* sequential;
+    RandomPlayingStrategy* random;
+    CustomQueueStrategy* custom;
+
+    PlayStrategyManager() {
+        sequential = new SequentialPlayingStrategy();
+        random = new RandomPlayingStrategy();
+        custom = new CustomQueueStrategy();
+    }
+
+public:
+    static PlayStrategyManager* getInstance() {
+        if (instance == nullptr) instance = new PlayStrategyManager();
+        return instance;
+    }
+
+    IPlayingStrategy* getStrategy(StrategyType type) {
+        if (type == StrategyType::SEQUENTIAL) return sequential;
+        if (type == StrategyType::RANDOM) return random;
+        if (type == StrategyType::CUSTOM) return custom;
+        throw runtime_error("Invalid strategy type");
+    }
+};
+
+PlayStrategyManager* PlayStrategyManager::instance = nullptr;
+```
+
+### 6.8 Music Player Facade (Singleton + Facade)
+
+```cpp
+class MusicPlayerFacade {
+    static MusicPlayerFacade* instance;
+    AudioEngine* audioEngine;
+    Playlist* currentPlaylist;
+    IPlayingStrategy* currentStrategy;
+    DeviceManager* deviceManager;
+    PlaylistManager* playlistManager;
+    PlayStrategyManager* strategyManager;
+
+    MusicPlayerFacade() {
+        audioEngine = new AudioEngine();
+        currentPlaylist = nullptr;
+        currentStrategy = nullptr;
+        deviceManager = DeviceManager::getInstance();
+        playlistManager = PlaylistManager::getInstance();
+        strategyManager = PlayStrategyManager::getInstance();
+    }
+
+public:
+    static MusicPlayerFacade* getInstance() {
+        if (instance == nullptr) instance = new MusicPlayerFacade();
+        return instance;
+    }
+
+    void connectDevice(DeviceType type) {
+        deviceManager->connect(type);
+    }
+
+    void setStrategy(StrategyType type) {
+        currentStrategy = strategyManager->getStrategy(type);
+    }
+
+    void loadPlaylist(string name) {
+        currentPlaylist = playlistManager->getPlaylist(name);
+        if (currentStrategy) currentStrategy->setPlaylist(currentPlaylist);
+    }
+
+    void playSong(Song* song) {
+        if (!deviceManager->hasOutputDevice())
+            throw runtime_error("No output device connected");
+        audioEngine->play(deviceManager->getOutputDevice(), song);
+    }
+
+    void pauseSong() { audioEngine->pause(); }
+
+    void playAllTracks() {
+        if (!currentStrategy) throw runtime_error("No strategy set");
+        while (currentStrategy->hasNext()) {
+            Song song = currentStrategy->next();
+            playSong(&song);
+        }
+    }
+
+    void playNextTrack() {
+        if (!currentStrategy || !currentStrategy->hasNext())
+            throw runtime_error("No next track");
+        Song song = currentStrategy->next();
+        playSong(&song);
+    }
+
+    void playPreviousTrack() {
+        if (!currentStrategy || !currentStrategy->hasPrevious())
+            throw runtime_error("No previous track");
+        Song song = currentStrategy->previous();
+        playSong(&song);
+    }
+
+    void enqueueNext(Song* song) {
+        if (currentStrategy) currentStrategy->addToNext(*song);
+    }
+};
+
+MusicPlayerFacade* MusicPlayerFacade::instance = nullptr;
+```
+
+### 6.9 Music Player App (Orchestrator)
+
+```cpp
+class MusicPlayerApp {
+    vector<Song> allSongs;
+    MusicPlayerFacade* facade;
+
+public:
+    MusicPlayerApp() {
+        facade = MusicPlayerFacade::getInstance();
+    }
+
+    Song* createSong(string title, string artist, string path) {
+        allSongs.emplace_back(title, artist, path);
+        return &allSongs.back();
+    }
+
+    Song* findSongByTitle(string title) {
+        for (auto& s : allSongs)
+            if (s.getTitle() == title) return &s;
+        return nullptr;
+    }
+
+    void createPlaylist(string name) {
+        PlaylistManager::getInstance()->createPlaylist(name);
+    }
+
+    void addSongToPlaylist(string playlistName, Song* song) {
+        PlaylistManager::getInstance()->addSongToPlaylist(playlistName, *song);
+    }
+
+    void connectAudioDevice(DeviceType type) { facade->connectDevice(type); }
+    void selectPlayStrategy(StrategyType type) { facade->setStrategy(type); }
+    void loadPlaylist(string name) { facade->loadPlaylist(name); }
+    void playSong(string title) {
+        Song* s = findSongByTitle(title);
+        if (s) facade->playSong(s);
+    }
+    void pauseSong() { facade->pauseSong(); }
+    void playAllTracks() { facade->playAllTracks(); }
+    void playNextTrack() { facade->playNextTrack(); }
+    void playPreviousTrack() { facade->playPreviousTrack(); }
+    void enqueueNextSong(Song* song) { facade->enqueueNext(song); }
+};
+```
+
+---
+
+## 7. Main Client Flow
+
+```cpp
+int main() {
+    try {
+        MusicPlayerApp app;
+
+        // 1. Create songs
+        Song* s1 = app.createSong("Kesariya", "Arijit Singh", "/music/kesariya.mp3");
+        Song* s2 = app.createSong("Chaiyya Chaiyya", "Sukhwinder", "/music/chaiyya.mp3");
+        Song* s3 = app.createSong("Tum Hi Ho", "Arijit Singh", "/music/tumhiho.mp3");
+        Song* s4 = app.createSong("Jai Ho", "A.R. Rahman", "/music/jaiho.mp3");
+        Song* s5 = app.createSong("Zinda", "Siddharth Mahadevan", "/music/zinda.mp3");
+
+        // 2. Create playlist and add songs
+        app.createPlaylist("Bollywood Vibes");
+        app.addSongToPlaylist("Bollywood Vibes", s1);
+        app.addSongToPlaylist("Bollywood Vibes", s2);
+        app.addSongToPlaylist("Bollywood Vibes", s3);
+        app.addSongToPlaylist("Bollywood Vibes", s4);
+
+        // 3. Connect device
+        app.connectAudioDevice(DeviceType::BLUETOOTH);
+
+        // 4. Play a single song, pause, resume
+        app.playSong("Zinda");
+        app.pauseSong();
+        app.playSong("Zinda");
+
+        // 5. Sequential playback
+        app.selectPlayStrategy(StrategyType::SEQUENTIAL);
+        app.loadPlaylist("Bollywood Vibes");
+        app.playAllTracks();
+
+        // 6. Random playback
+        app.selectPlayStrategy(StrategyType::RANDOM);
+        app.loadPlaylist("Bollywood Vibes");
+        app.playAllTracks();
+
+        // 7. Custom queue playback
+        app.selectPlayStrategy(StrategyType::CUSTOM);
+        app.loadPlaylist("Bollywood Vibes");
+        app.enqueueNextSong(s1);
+        app.enqueueNextSong(s3);
+        app.playAllTracks();
+
+        // 8. Previous track
+        app.selectPlayStrategy(StrategyType::SEQUENTIAL);
+        app.loadPlaylist("Bollywood Vibes");
+        app.playAllTracks();
+        app.playPreviousTrack();
+        app.playPreviousTrack();
+
+    } catch (const exception& e) {
+        cout << "Error: " << e.what() << "\n";
+    }
+    return 0;
+}
+```
+
+### Sample Output
+
+```
+Device connected
+Playing via Bluetooth: Zinda
+Paused: Zinda
+Resuming: Zinda
+Playing via Bluetooth: Zinda
+Playing via Bluetooth: Kesariya
+Playing via Bluetooth: Chaiyya Chaiyya
+Playing via Bluetooth: Tum Hi Ho
+Playing via Bluetooth: Jai Ho
+... (random order)
+... (custom queue: Kesariya, Tum Hi Ho, then sequential)
+Previous: Tum Hi Ho
+Previous: Chaiyya Chaiyya
+```
+
+---
+
+## 8. Design Principles Applied
+
+| Principle | How Applied |
+|-----------|-------------|
+| **SRP** | Each class has one responsibility (Song, Playlist, Device, Strategy, Manager, Facade) |
+| **OCP** | New devices = new adapters; new strategies = new strategy classes |
+| **LSP** | All concrete devices substitutable for `IAudioOutputDevice` |
+| **ISP** | Small, focused interfaces (`IAudioOutputDevice`, `IPlayingStrategy`) |
+| **DIP** | Managers depend on abstractions, not concrete implementations |
+| **Facade** | `MusicPlayerFacade` hides entire subsystem complexity |
+| **Composition over Inheritance** | Adapters use composition, not inheritance, to wrap third-party APIs |
+
+---
+
+## 9. Key Takeaways
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    MUSIC PLAYER — SUMMARY                           │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   🎯 FIVE DESIGN PATTERNS WORKING TOGETHER                          │
+│                                                                      │
+│   1. ADAPTER    → Integrate incompatible third-party audio APIs     │
+│   2. STRATEGY   → Different playlist playback algorithms            │
+│   3. FACTORY    → Create devices dynamically                        │
+│   4. SINGLETON  → Ensure single instances of all managers           │
+│   5. FACADE     → Simplify subsystem for the client                 │
+│                                                                      │
+│   🧩 KEY INSIGHTS                                                   │
+│   • Bottom-up approach: Start with small objects (Song)             │
+│   • Composition over inheritance everywhere                         │
+│   • Managers are the single point of contact for their domain       │
+│   • Facade is the single point of contact for the whole app         │
+│   • Client (MusicPlayerApp) orchestrates everything                 │
+│                                                                      │
+│   ✅ ACHIEVEMENTS                                                   │
+│   • Pluggable output devices (Bluetooth, Wired, Headphones)         │
+│   • Pluggable playback strategies (Sequential, Random, Custom)      │
+│   • Clean separation of concerns                                    │
+│   • Extensible without modifying existing code                      │
+│                                                                      │
+│   🎓 LESSON                                                         │
+│   Real-world LLD problems rarely use just one pattern.              │
+│   The best designs combine multiple patterns naturally.             │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Interview Wisdom
+
+This case study demonstrates that **design patterns don't work in isolation**. The Music Player combines 5 patterns, each solving a specific problem:
+
+- **Adapter** solves the third-party API integration problem
+- **Strategy** solves the algorithm variation problem
+- **Factory** solves the object creation problem
+- **Singleton** solves the shared state problem
+- **Facade** solves the complexity hiding problem
+
+The **`MusicPlayerApp`** acts as an orchestrator — the only class the external client needs to know about. Everything else is hidden behind it. This is a beautiful example of building a **maintainable, scalable, and extensible** system.
+
+---
+
+## 19. Composite Design Pattern | Build File System (UML & Code) (38:03)
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
