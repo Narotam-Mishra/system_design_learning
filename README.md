@@ -10791,4 +10791,433 @@ The Adapter pattern is **very common in LLD interviews** and real-world projects
 
 ## 17. Facade Design Pattern | Real-world use case + Code (18:52)
 
+This lecture covers the **Facade Design Pattern** — a structural pattern that provides a simplified, unified interface to a complex subsystem. It hides the complexity of the subsystem and exposes only what the client needs. The classic example used is a **Computer Boot-up System**.
+
+---
+
+## 1. What is the Facade Pattern?
+
+> **"Provide a simplified, unified interface to a set of complex subsystems. It hides the complexity of the system and exposes only what is necessary to the user."**
+
+### Core Idea
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    FACADE PATTERN — CORE IDEA                       │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   Without Facade:                                                   │
+│   Client ──▶ A ──▶ B ──▶ C ──▶ D ──▶ E   (complex interactions)    │
+│                                                                      │
+│   With Facade:                                                      │
+│   Client ──▶ Facade ──▶ A, B, C, D, E   (one simple call)           │
+│                                                                      │
+│   The Facade acts as a gateway, hiding the internal complexity.      │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 2. The Problem: Complex Subsystem
+
+Imagine a system with many interrelated classes:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    COMPLEX SUBSYSTEM                                │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   ┌───────┐     ┌───────┐     ┌───────┐     ┌───────┐              │
+│   │   A   │────▶│   B   │────▶│   C   │────▶│   D   │              │
+│   └───────┘     └───────┘     └───────┘     └───────┘              │
+│        │             │             │             │                  │
+│        └─────────────┴─────────────┴─────────────┘                  │
+│                                                                      │
+│   Client must know about and interact with all these classes.       │
+│   This creates tight coupling and complexity.                       │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Problems:**
+- Client needs to understand many classes and their interactions.
+- Tight coupling between client and subsystem.
+- Changes in subsystem force changes in client.
+- Violates the **Principle of Least Knowledge** (Law of Demeter).
+
+---
+
+## 3. The Solution: Facade Pattern
+
+Introduce a **Facade** class that provides a simple interface to the complex subsystem. The client only talks to the Facade.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    FACADE SOLUTION                                  │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   ┌─────────────┐      ┌─────────────┐      ┌─────────────────┐     │
+│   │   Client    │─────▶│   Facade    │─────▶│   Subsystem     │     │
+│   │             │      │             │      │ (A, B, C, D, E) │     │
+│   └─────────────┘      └─────────────┘      └─────────────────┘     │
+│                                                                      │
+│   Client calls one method on Facade.                                │
+│   Facade orchestrates the subsystem calls.                          │
+│   Client is decoupled from the subsystem.                           │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 4. Example: Computer Boot-up System
+
+### Subsystem Classes
+
+| Class | Method | Responsibility |
+|-------|--------|----------------|
+| `PowerSupply` | `providePower()` | Supplies power |
+| `CoolingSystem` | `startFan()` | Starts cooling fan |
+| `CPU` | `initialize()` | Initializes CPU |
+| `Memory` | `selfTest()` | Runs memory self-test |
+| `HardDrive` | `spinUp()` | Spins up hard drive |
+| `BIOS` | `boot(CPU, Memory)` | Boots BIOS using CPU and Memory |
+| `OperatingSystem` | `load()` | Loads OS |
+
+### Code Implementation
+
+```cpp
+#include <iostream>
+using namespace std;
+
+// ============ SUBSYSTEM CLASSES ============
+class PowerSupply {
+public:
+    void providePower() { cout << "Power Supply: Providing power\n"; }
+};
+
+class CoolingSystem {
+public:
+    void startFan() { cout << "Cooling System: Fan started\n"; }
+};
+
+class CPU {
+public:
+    void initialize() { cout << "CPU: Initialized\n"; }
+};
+
+class Memory {
+public:
+    void selfTest() { cout << "Memory: Self-test passed\n"; }
+};
+
+class HardDrive {
+public:
+    void spinUp() { cout << "Hard Drive: Spinning up\n"; }
+};
+
+class BIOS {
+public:
+    void boot(CPU* cpu, Memory* mem) {
+        cout << "BIOS: Booting...\n";
+        cpu->initialize();
+        mem->selfTest();
+    }
+};
+
+class OperatingSystem {
+public:
+    void load() { cout << "Operating System: Loaded\n"; }
+};
+
+// ============ FACADE ============
+class ComputerFacade {
+    PowerSupply* power;
+    CoolingSystem* cooling;
+    CPU* cpu;
+    Memory* memory;
+    HardDrive* hardDrive;
+    BIOS* bios;
+    OperatingSystem* os;
+
+public:
+    ComputerFacade() {
+        power = new PowerSupply();
+        cooling = new CoolingSystem();
+        cpu = new CPU();
+        memory = new Memory();
+        hardDrive = new HardDrive();
+        bios = new BIOS();
+        os = new OperatingSystem();
+    }
+
+    void startComputer() {
+        cout << "--- Starting Computer ---\n";
+        power->providePower();
+        cooling->startFan();
+        cpu->initialize();
+        memory->selfTest();
+        hardDrive->spinUp();
+        bios->boot(cpu, memory);
+        os->load();
+        cout << "Computer booted successfully!\n";
+    }
+
+    ~ComputerFacade() {
+        delete power; delete cooling; delete cpu;
+        delete memory; delete hardDrive; delete bios; delete os;
+    }
+};
+
+// ============ CLIENT ============
+int main() {
+    ComputerFacade* computer = new ComputerFacade();
+    computer->startComputer();
+    delete computer;
+    return 0;
+}
+```
+
+### Output
+
+```
+--- Starting Computer ---
+Power Supply: Providing power
+Cooling System: Fan started
+CPU: Initialized
+Memory: Self-test passed
+Hard Drive: Spinning up
+BIOS: Booting...
+CPU: Initialized
+Memory: Self-test passed
+Operating System: Loaded
+Computer booted successfully!
+```
+
+---
+
+## 5. UML Diagram (Standard)
+
+```
+                    ┌──────────────────────────────┐
+                    │          Client              │
+                    └──────────────┬───────────────┘
+                                   │
+                                   │ uses
+                                   ▼
+                    ┌──────────────────────────────┐
+                    │          Facade              │
+                    ├──────────────────────────────┤
+                    │ + execute(): void            │
+                    └──────────────┬───────────────┘
+                                   │
+                    ┌──────────────┴───────────────┐
+                    │                              │
+                    ▼                              ▼
+         ┌─────────────────────┐        ┌─────────────────────┐
+         │   Subsystem A       │        │   Subsystem B       │
+         ├─────────────────────┤        ├─────────────────────┤
+         │ + methodA()         │        │ + methodB()         │
+         └─────────────────────┘        └─────────────────────┘
+                    │                              │
+                    ▼                              ▼
+         ┌─────────────────────┐        ┌─────────────────────┐
+         │   Subsystem C       │        │   Subsystem D       │
+         ├─────────────────────┤        ├─────────────────────┤
+         │ + methodC()         │        │ + methodD()         │
+         └─────────────────────┘        └─────────────────────┘
+```
+
+- **Client** only knows about `Facade`.
+- **Facade** knows about and orchestrates the subsystem.
+- Subsystem classes are unaware of the Facade.
+
+---
+
+## 6. Principle of Least Knowledge (Law of Demeter)
+
+The Facade pattern helps enforce the **Principle of Least Knowledge**: *"Talk only to your immediate friends."*
+
+### Guidelines
+
+| Rule | Description |
+|------|-------------|
+| 1 | You can call methods on the object itself (`this`). |
+| 2 | You can call methods on objects passed as parameters. |
+| 3 | You can call methods on objects you create. |
+| 4 | You can call methods on objects that are components (has-a) of your class. |
+
+**Do not:** Call methods on objects returned by another method (i.e., `a.getB().getC().doSomething()`).
+
+### Example
+
+```cpp
+// ❌ Violates Law of Demeter
+class A {
+    B* b;
+public:
+    void doSomething() {
+        // Reaching through B to call C's method
+        b->getC()->doSomethingElse();
+    }
+};
+
+// ✅ Follows Law of Demeter
+class A {
+    B* b;
+public:
+    void doSomething() {
+        // Ask B to do it; B knows about C
+        b->doSomethingWithC();
+    }
+};
+```
+
+The Facade embodies this principle by giving the client a single point of contact, preventing the client from reaching into the subsystem.
+
+---
+
+## 7. Facade vs. Adapter
+
+| Aspect | Facade | Adapter |
+|--------|--------|---------|
+| **Intent** | Simplify a complex subsystem | Make two incompatible interfaces work together |
+| **Problem** | Too many classes, complex interactions | Interface mismatch |
+| **Client awareness** | Client doesn't know subsystem | Client knows the target interface |
+| **Focus** | Hide complexity | Convert interface |
+| **Example** | Computer boot-up | Indian charger in US socket |
+
+Both introduce a middle class, but their **intent** is different.
+
+---
+
+## 8. Real-World Use Cases
+
+| Use Case | Description |
+|----------|-------------|
+| **Computer Boot-up** | One `startComputer()` hides CPU, memory, BIOS, OS, etc. |
+| **Gaming Engines** | `startGame()` hides asset loading, memory management, physics engine, etc. |
+| **Payment Gateways** | `makePayment()` hides balance check, PIN validation, fraud detection, notifications, etc. |
+| **Home Theater Systems** | `watchMovie()` hides amplifier, DVD player, projector, lights, etc. |
+| **Compiler** | A compiler facade might hide parsing, semantic analysis, code generation, optimization. |
+| **Operating Systems** | System calls are facades over complex kernel operations. |
+
+---
+
+## 9. How Facade Solves the Inheritance Problem (Simple Example)
+
+### The Inheritance Problem: Class Explosion
+
+Suppose you have a **Home Theater System** with many components: `Amplifier`, `DVDPlayer`, `Projector`, `Lights`, `Screen`, `Speakers`. If you try to use inheritance to create different configurations, you might end up with:
+
+```
+HomeTheater
+├── MovieNightConfiguration
+├── SportsNightConfiguration
+├── GamingConfiguration
+├── MusicConfiguration
+└── ... (combinatorial explosion)
+```
+
+Each configuration would need its own subclass, and adding a new component or configuration would require more subclasses. This is the same **class explosion** problem seen in other patterns.
+
+### The Facade Solution: Composition Over Inheritance
+
+Instead of creating subclasses for every configuration, the Facade pattern uses **composition**:
+
+- `HomeTheaterFacade` **has-a** reference to each component.
+- It provides methods like `watchMovie()`, `listenToMusic()`, `playGame()`.
+- Each method orchestrates the necessary components.
+- No inheritance hierarchy for configurations.
+- Adding a new configuration means adding a new method to the Facade, not a new subclass.
+- Adding a new component means adding a reference and updating the relevant methods.
+
+**Simple Example:**
+
+```cpp
+class HomeTheaterFacade {
+    Amplifier* amp;
+    DVDPlayer* dvd;
+    Projector* projector;
+    Lights* lights;
+    Screen* screen;
+public:
+    HomeTheaterFacade(...) { /* initialize all */ }
+
+    void watchMovie(string movie) {
+        lights->dim();
+        screen->down();
+        projector->on();
+        amp->on();
+        dvd->play(movie);
+    }
+
+    void endMovie() {
+        dvd->stop();
+        amp->off();
+        projector->off();
+        screen->up();
+        lights->on();
+    }
+};
+```
+
+The client just calls `facade->watchMovie("Inception")`. No inheritance needed. This demonstrates **composition over inheritance** and avoids the pitfalls of deep hierarchies.
+
+---
+
+## 10. Definition
+
+> **"The Facade pattern provides a simplified, unified interface to a set of complex subsystems. It hides the complexity of the system and exposes only what is necessary to the user."**
+
+---
+
+## 11. Key Takeaways
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    FACADE PATTERN — SUMMARY                         │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   🎯 PURPOSE                                                        │
+│   Provide a simple interface to a complex subsystem.                │
+│                                                                      │
+│   🧩 KEY COMPONENTS                                                 │
+│   • Facade – unified interface to subsystem                         │
+│   • Subsystem classes – perform the actual work                     │
+│   • Client – uses only the Facade                                   │
+│                                                                      │
+│   ✅ BENEFITS                                                       │
+│   • Decouples client from subsystem                                 │
+│   • Simplifies client code                                          │
+│   • Promotes Principle of Least Knowledge                           │
+│   • Fosters composition over inheritance                            │
+│   • Easier to use and maintain                                      │
+│                                                                      │
+│   ⚠️ TRADE-OFFS                                                     │
+│   • Facade can become a god object if not careful                   │
+│   • Subsystem changes may still require Facade updates              │
+│                                                                      │
+│   🌍 REAL-WORLD USES                                                │
+│   • Computer boot-up                                                │
+│   • Gaming engines                                                  │
+│   • Payment gateways                                                │
+│   • Home theater systems                                            │
+│   • Compilers                                                       │
+│                                                                      │
+│   💡 GOLDEN RULE                                                    │
+│   "When you need to simplify a complex system, use a Facade."       │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Interview Wisdom
+
+The Facade pattern is **simple yet powerful**. It is frequently used in LLD interviews and real-world projects to hide complexity. It helps enforce the **Law of Demeter** and demonstrates **composition over inheritance**. When you see a client needing to interact with many interrelated classes, consider a Facade.
+
+---
+
+## 18. Build Spotify, Music Player App (1:15:00)
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
