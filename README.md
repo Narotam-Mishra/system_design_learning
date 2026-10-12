@@ -12236,4 +12236,456 @@ The **`MusicPlayerApp`** acts as an orchestrator — the only class the external
 
 ## 19. Composite Design Pattern | Build File System (UML & Code) (38:03)
 
+This lecture covers the **Composite Design Pattern** — a structural pattern that lets you compose objects into tree-like structures to represent part-whole hierarchies. It treats individual objects (leaves) and compositions (composites) uniformly. The classic example used is a **File System**.
+
+---
+
+## 1. Introduction: Similarity with Tree Data Structure
+
+If you come from a DSA background and understand **trees**, you already understand the core idea of the Composite Pattern.
+
+- **Tree Structure**: A hierarchical structure with nodes. Some nodes are **leaf nodes** (end points) and some are **intermediate nodes** (can have children).
+- **Composite Pattern**: Applies the same concept to object-oriented design. It deals with problems that can be represented as a tree where:
+  - **Leaf**: An end object (e.g., a file).
+  - **Composite**: An object that can contain other objects (e.g., a folder).
+
+Any problem that can be expressed as a **part-whole hierarchy** (tree) is a candidate for the Composite Pattern.
+
+---
+
+## 2. The Problem: Designing a File System
+
+### Requirements
+
+Design a file system where:
+- A **Folder** can contain multiple **Files** and other **Folders**.
+- A **File** is a leaf node and cannot contain anything else.
+- We need operations like:
+  - `ls` (list directory contents)
+  - `openAll` (recursively expand everything)
+  - `getSize` (total size)
+  - `cd` (change directory)
+  - `getName`
+
+### Situation Without Composite Pattern
+
+If we treat `File` and `Folder` as completely separate classes, we run into several issues:
+
+```
+File:
+  - name, size, content
+  - open()
+  - getName()
+
+Folder:
+  - name
+  - List<File> files
+  - List<Folder> folders
+  - openAll()  // needs to loop over both lists
+  - ls()
+  - getName()
+```
+
+**Problems:**
+- **Two separate lists** (files and folders) make it hard to maintain order.
+- When implementing `openAll`, we need **if-else** checks: "Is this element a File or a Folder?" 
+- Adding new operations (like `cd`) requires checking types everywhere.
+- **Class explosion** if we try to use inheritance to handle different combinations.
+- **Tight coupling** and **complex client code**.
+
+---
+
+## 3. What the Composite Pattern Says
+
+> **Treat individual objects (leaves) and compositions (composites) uniformly.**
+
+Key ideas:
+- Define a **common interface** (or abstract class) for both leaves and composites.
+- The composite holds a **list of components** (which can be leaves or other composites).
+- Operations are defined in the common interface. The leaf implements them in its own way, and the composite delegates to its children (often recursively).
+- The client interacts only with the common interface, so it doesn't need to know whether it's dealing with a leaf or a composite.
+
+### Components
+
+- **Component**: The common interface/abstract class (e.g., `FileSystemItem`).
+- **Leaf**: Represents end objects (e.g., `File`).
+- **Composite**: Represents containers (e.g., `Folder`). It holds a list of `Component`s and implements operations by delegating to children.
+
+---
+
+## 4. UML Design for File System
+
+```
+                    ┌──────────────────────────────┐
+                    │      <<interface>>           │
+                    │     FileSystemItem           │
+                    ├──────────────────────────────┤
+                    │ + ls(): void                 │
+                    │ + openAll(indent): void      │
+                    │ + getSize(): int             │
+                    │ + cd(target): FileSystemItem*│
+                    │ + getName(): string          │
+                    │ + isFolder(): bool           │
+                    └──────────────┬───────────────┘
+                                   △
+              ┌────────────────────┼────────────────────┐
+              │                    │                    │
+     ┌────────┴────────┐  ┌────────┴────────┐
+     │      File       │  │     Folder      │
+     ├─────────────────┤  ├─────────────────┤
+     │ - name: string  │  │ - name: string  │
+     │ - size: int     │  │ - children:     │
+     │                 │  │   List<FSItem*> │
+     ├─────────────────┤  ├─────────────────┤
+     │ + ls()          │  │ + ls()          │
+     │ + openAll()     │  │ + openAll()     │
+     │ + getSize()     │  │ + getSize()     │
+     │ + cd() -> null  │  │ + cd()          │
+     │ + getName()     │  │ + getName()     │
+     │ + isFolder()=false│ │ + isFolder()=true│
+     └─────────────────┘  └─────────────────┘
+                                   │
+                                   │ has-a (1..*)
+                                   ▼
+                            FileSystemItem
+```
+
+**Key Relationships:**
+- `File` **IS-A** `FileSystemItem`
+- `Folder` **IS-A** `FileSystemItem`
+- `Folder` **HAS-A** list of `FileSystemItem` (which can be Files or Folders) — this is the **1-to-many** relationship that enables recursion.
+
+---
+
+## 5. Code Implementation
+
+### 5.1 Interface: FileSystemItem
+
+```cpp
+class FileSystemItem {
+public:
+    virtual void ls(int indent = 0) = 0;
+    virtual void openAll(int indent = 0) = 0;
+    virtual int getSize() = 0;
+    virtual FileSystemItem* cd(const string& target) = 0;
+    virtual string getName() = 0;
+    virtual bool isFolder() = 0;
+    virtual ~FileSystemItem() {}
+};
+```
+
+### 5.2 Leaf: File
+
+```cpp
+class File : public FileSystemItem {
+    string name;
+    int size;  // in KB for simplicity
+
+public:
+    File(string n, int s) : name(n), size(s) {}
+
+    void ls(int indent = 0) override {
+        cout << string(indent, ' ') << name << "\n";
+    }
+
+    void openAll(int indent = 0) override {
+        // For a file, openAll just prints its name
+        cout << string(indent, ' ') << name << "\n";
+    }
+
+    int getSize() override { return size; }
+
+    FileSystemItem* cd(const string& target) override {
+        // Cannot change directory into a file
+        return nullptr;
+    }
+
+    string getName() override { return name; }
+
+    bool isFolder() override { return false; }
+};
+```
+
+### 5.3 Composite: Folder
+
+```cpp
+class Folder : public FileSystemItem {
+    string name;
+    vector<FileSystemItem*> children;
+
+public:
+    Folder(string n) : name(n) {}
+
+    void add(FileSystemItem* item) {
+        children.push_back(item);
+    }
+
+    void ls(int indent = 0) override {
+        for (auto child : children) {
+            // Prefix with '+' if it's a folder for visual clarity
+            string prefix = child->isFolder() ? "+ " : "  ";
+            cout << string(indent, ' ') << prefix << child->getName() << "\n";
+        }
+    }
+
+    void openAll(int indent = 0) override {
+        cout << string(indent, ' ') << "+ " << name << "\n";
+        for (auto child : children) {
+            child->openAll(indent + 2);
+        }
+    }
+
+    int getSize() override {
+        int total = 0;
+        for (auto child : children) {
+            total += child->getSize();
+        }
+        return total;
+    }
+
+    FileSystemItem* cd(const string& target) override {
+        for (auto child : children) {
+            if (child->isFolder() && child->getName() == target) {
+                return child;
+            }
+        }
+        return nullptr;
+    }
+
+    string getName() override { return name; }
+
+    bool isFolder() override { return true; }
+};
+```
+
+### 5.4 Client Code (main)
+
+```cpp
+int main() {
+    // Build the tree
+    Folder* root = new Folder("root");
+    root->add(new File("file1.txt", 1));
+    root->add(new File("file2.txt", 1));
+
+    Folder* docs = new Folder("Docs");
+    docs->add(new File("resume.pdf", 1));
+    docs->add(new File("notes.txt", 1));
+    root->add(docs);
+
+    Folder* images = new Folder("Images");
+    images->add(new File("photo.jpg", 1));
+    root->add(images);
+
+    // Demonstrate operations
+    cout << "--- openAll ---\n";
+    root->openAll();
+
+    cout << "\n--- ls on root ---\n";
+    root->ls();
+
+    cout << "\n--- ls on Docs ---\n";
+    docs->ls();
+
+    cout << "\n--- cd into Docs ---\n";
+    FileSystemItem* cwd = root->cd("Docs");
+    if (cwd) {
+        cwd->ls();
+    } else {
+        cout << "Could not cd into Docs\n";
+    }
+
+    cout << "\n--- Total size of root ---\n";
+    cout << "Total size: " << root->getSize() << " KB\n";
+
+    // Cleanup (omitted for brevity)
+    return 0;
+}
+```
+
+### 5.5 Sample Output
+
+```
+--- openAll ---
++ root
+  + file1.txt
+  + file2.txt
+  + Docs
+    + resume.pdf
+    + notes.txt
+  + Images
+    + photo.jpg
+
+--- ls on root ---
+  file1.txt
+  file2.txt
++ Docs
++ Images
+
+--- ls on Docs ---
+  resume.pdf
+  notes.txt
+
+--- cd into Docs ---
+  resume.pdf
+  notes.txt
+
+--- Total size of root ---
+Total size: 5 KB
+```
+
+---
+
+## 6. Standard UML Diagram
+
+```
+                    ┌──────────────────────────────┐
+                    │         Client               │
+                    └──────────────┬───────────────┘
+                                   │ uses
+                                   ▼
+                    ┌──────────────────────────────┐
+                    │      <<interface>>           │
+                    │        Component             │
+                    ├──────────────────────────────┤
+                    │ + operation(): void = 0      │
+                    └──────────────┬───────────────┘
+                                   △
+                    ┌──────────────┴───────────────┐
+                    │                              │
+                    ▼                              ▼
+       ┌────────────────────────┐    ┌─────────────────────────────┐
+       │         Leaf           │    │        Composite            │
+       ├────────────────────────┤    ├─────────────────────────────┤
+       │ + operation()          │    │ - children: List<Component*>│
+       └────────────────────────┘    ├─────────────────────────────┤
+                                     │ + operation()               │
+                                     │   for each child:           │
+                                     │     child->operation()      │
+                                     └─────────────────────────────┘
+                                                    │ has-a (1..*)
+                                                    ▼
+                                               Component
+```
+
+- **Component**: Common interface.
+- **Leaf**: Represents end objects; implements `operation()` directly.
+- **Composite**: Holds a list of `Component`s; implements `operation()` by delegating to children (often recursively).
+- **Client**: Interacts only with `Component`, so it treats Leaf and Composite uniformly.
+
+---
+
+## 7. Standard Definition
+
+> **"The Composite Pattern composes objects into tree-like structures to represent part-whole hierarchies. It lets clients treat individual objects and compositions of objects uniformly."**
+
+Key points:
+- Defines a common interface for leaves and composites.
+- Composites can contain leaves and other composites.
+- Operations on composites are often delegated to children recursively.
+- Client code does not need to distinguish between leaves and composites.
+
+---
+
+## 8. How It Solves Inheritance Problems (Simple Example)
+
+### The Inheritance Problem: Class Explosion and Complexity
+
+Suppose you want to represent a file system using inheritance alone. You might create:
+
+```
+FileSystemItem
+├── File
+├── Folder
+├── FolderWithFiles
+├── FolderWithFolders
+├── FolderWithFilesAndFolders
+└── ... (and so on)
+```
+
+Each combination of contents would require a new subclass. Adding a new type of item (e.g., `Shortcut`) would require even more subclasses. This is **class explosion**.
+
+Also, operations like `openAll` would require **type checking** (`if (item is File) ... else if (item is Folder) ...`) everywhere, leading to **tight coupling** and **fragile code**.
+
+### The Composite Solution: Uniform Treatment
+
+The Composite Pattern solves this by:
+
+- **One interface** (`FileSystemItem`) for both leaves (`File`) and composites (`Folder`).
+- The composite holds a **list of `FileSystemItem`** — it doesn't care whether each child is a leaf or another composite.
+- Operations are **polymorphic**: The client calls `openAll()` on any `FileSystemItem`. If it's a leaf, it does its thing; if it's a composite, it recursively calls `openAll()` on its children.
+- No type checking, no class explosion, no tight coupling.
+
+**Simple Example:**
+Instead of having `FolderWithFiles` and `FolderWithFolders`, we have a single `Folder` class that can contain any `FileSystemItem`. Adding a new type of item (e.g., `Shortcut`) just means creating a new class that implements `FileSystemItem` — no changes to existing classes.
+
+This demonstrates the principle: **"Favor composition over inheritance"** and **"Program to an interface, not an implementation."**
+
+---
+
+## 9. Real-World Use Cases
+
+| Use Case | Description |
+|----------|-------------|
+| **File Systems** | Folders and files (as shown). |
+| **UI Components** | Menus, submenus, dropdown lists (e.g., File → Save As → PDF). |
+| **Organization Structures** | Company hierarchy: CEO → Managers → Employees. |
+| **Graphics Systems** | Shapes composed of other shapes (e.g., a complex diagram made of simple shapes). |
+| **Document Outlines** | Chapters → Sections → Subsections. |
+| **ASTs (Abstract Syntax Trees)** | Compilers represent code as trees where nodes are expressions/statements. |
+
+Any problem that naturally forms a **tree** with **part-whole** relationships is a good fit.
+
+---
+
+## 10. Key Takeaways
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    COMPOSITE PATTERN — SUMMARY                      │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   🎯 PURPOSE                                                        │
+│   Compose objects into tree structures to represent part-whole      │
+│   hierarchies. Treat individual objects and compositions uniformly. │
+│                                                                      │
+│   🧩 KEY COMPONENTS                                                 │
+│   • Component – common interface for leaves and composites          │
+│   • Leaf – end object (e.g., File)                                  │
+│   • Composite – container (e.g., Folder) that holds Components      │
+│   • Client – uses only the Component interface                      │
+│                                                                      │
+│   ✅ BENEFITS                                                       │
+│   • Uniform treatment of leaves and composites                      │
+│   • No type checking (no if-else on types)                          │
+│   • Easy to add new types of components                             │
+│   • Recursive operations are natural                                │
+│   • Avoids class explosion                                          │
+│   • Promotes composition over inheritance                           │
+│                                                                      │
+│   ⚠️ TRADE-OFFS                                                     │
+│   • Can make design overly general                                  │
+│   • May be harder to restrict what can be added to a composite      │
+│                                                                      │
+│   🌍 REAL-WORLD USES                                                │
+│   • File systems                                                    │
+│   • UI menus and dropdowns                                          │
+│   • Organization charts                                             │
+│   • Graphics/drawing applications                                   │
+│   • Document outlines                                               │
+│                                                                      │
+│   💡 GOLDEN RULE                                                    │
+│   "When you have a tree-like hierarchy and want to treat leaves     │
+│    and containers uniformly, use the Composite Pattern."            │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Interview Wisdom
+
+The Composite Pattern is **extremely useful** for any LLD problem involving **hierarchical data**. If you spot a tree structure in the problem statement (folders, menus, org charts, etc.), the Composite Pattern is likely the right tool. It simplifies client code, eliminates type-checking, and makes the system extensible. It's a classic example of **"composition over inheritance"** and **polymorphism** in action.
+
+---
+
+## 20. Template Method Pattern | Step-by-Step Example (UML + Code) (20:21)
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
