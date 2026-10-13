@@ -13407,4 +13407,377 @@ The Proxy pattern is **very common in LLD interviews** and real-world systems. I
 
 ## 22. Chain of Responsibility Pattern | Build Cash Dispenser(UML & Code) (29:49)
 
+This lecture covers the **Chain of Responsibility (CoR)** design pattern — a behavioral pattern that lets you pass a request along a chain of handlers. Each handler decides either to process the request or to pass it to the next handler in the chain. The classic example used is an **ATM cash dispensing system**.
+
+---
+
+## 1. What is Chain of Responsibility?
+
+> **"Avoid coupling the sender of a request to its receiver by giving more than one object a chance to handle the request. Chain the receiving objects and pass the request along the chain until an object handles it."**
+
+### Core Idea
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    CHAIN OF RESPONSIBILITY — CORE IDEA              │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   Client ──▶ Handler1 ──▶ Handler2 ──▶ Handler3 ──▶ ...             │
+│                                                                      │
+│   • Each handler checks if it can process the request.              │
+│   • If yes, it processes and returns (or continues).                │
+│   • If no, it forwards the request to the next handler.             │
+│   • The chain can be built dynamically.                             │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 2. UML Design
+
+### 2.1 Standard UML for Chain of Responsibility
+
+```
+                    ┌──────────────────────────────┐
+                    │         Client               │
+                    └──────────────┬───────────────┘
+                                   │ uses
+                                   ▼
+                    ┌──────────────────────────────┐
+                    │      <<abstract>>            │
+                    │        Handler               │
+                    ├──────────────────────────────┤
+                    │ - nextHandler: Handler*      │
+                    ├──────────────────────────────┤
+                    │ + setNext(Handler*): void    │
+                    │ + handleRequest(): void = 0  │
+                    └──────────────┬───────────────┘
+                                   △
+                    ┌──────────────┴───────────────┐
+                    │                              │
+                    ▼                              ▼
+       ┌────────────────────────┐    ┌─────────────────────────────┐
+       │   ConcreteHandler1     │    │   ConcreteHandler2          │
+       ├────────────────────────┤    ├─────────────────────────────┤
+       │ + handleRequest()      │    │ + handleRequest()           │
+       └────────────────────────┘    └─────────────────────────────┘
+```
+
+**Key Relationships:**
+- `Handler` is an abstract class/interface with a method `handleRequest()`.
+- `Handler` holds a reference to the next `Handler` (`nextHandler`).
+- Concrete handlers inherit from `Handler` and implement `handleRequest()`.
+- Client holds a reference to the first handler in the chain.
+
+---
+
+## 3. ATM Cash Dispensing Example
+
+### 3.1 Problem
+
+An ATM must dispense cash using notes of different denominations (e.g., ₹1000, ₹500, ₹200, ₹100). The ATM has a limited number of notes for each denomination. The request should be fulfilled using the largest possible denominations first, and any remainder should be passed to the next denomination handler.
+
+### 3.2 UML for ATM Example
+
+```
+                    ┌──────────────────────────────┐
+                    │         Client               │
+                    └──────────────┬───────────────┘
+                                   │
+                                   ▼
+                    ┌──────────────────────────────┐
+                    │      <<abstract>>            │
+                    │      MoneyHandler            │
+                    ├──────────────────────────────┤
+                    │ - nextHandler: MoneyHandler* │
+                    ├──────────────────────────────┤
+                    │ + setNext(MoneyHandler*):void│
+                    │ + dispense(int): void = 0    │
+                    └──────────────┬───────────────┘
+                                   △
+              ┌────────────────────┼────────────────────┐
+              │                    │                    │
+     ┌────────┴────────┐ ┌─────────┴────────┐ ┌────────┴────────┐
+     │ ThousandHandler │ │ FiveHundredHandler│ │ HundredHandler │
+     │ (₹1000 notes)   │ │ (₹500 notes)      │ │ (₹100 notes)   │
+     └─────────────────┘ └──────────────────┘ └─────────────────┘
+```
+
+### 3.3 Code Implementation (C++)
+
+```cpp
+#include <iostream>
+#include <memory>
+using namespace std;
+
+// Abstract Handler
+class MoneyHandler {
+protected:
+    MoneyHandler* nextHandler;
+public:
+    MoneyHandler() : nextHandler(nullptr) {}
+    void setNext(MoneyHandler* next) { nextHandler = next; }
+    virtual void dispense(int amount) = 0;
+    virtual ~MoneyHandler() {}
+};
+
+// Concrete Handler for ₹1000 notes
+class ThousandHandler : public MoneyHandler {
+private:
+    int numNotes;
+public:
+    ThousandHandler(int notes) : numNotes(notes) {}
+    void dispense(int amount) override {
+        int notesNeeded = amount / 1000;
+        if (notesNeeded > 0) {
+            int notesToDispense = min(notesNeeded, numNotes);
+            int dispensed = notesToDispense * 1000;
+            numNotes -= notesToDispense;
+            cout << "Dispensing " << notesToDispense << " x ₹1000 notes = ₹" << dispensed << endl;
+            amount -= dispensed;
+        }
+        if (amount > 0 && nextHandler) {
+            nextHandler->dispense(amount);
+        } else if (amount > 0) {
+            cout << "Remaining amount ₹" << amount << " cannot be fulfilled (insufficient funds)" << endl;
+        }
+    }
+};
+
+// Concrete Handler for ₹500 notes
+class FiveHundredHandler : public MoneyHandler {
+private:
+    int numNotes;
+public:
+    FiveHundredHandler(int notes) : numNotes(notes) {}
+    void dispense(int amount) override {
+        int notesNeeded = amount / 500;
+        if (notesNeeded > 0) {
+            int notesToDispense = min(notesNeeded, numNotes);
+            int dispensed = notesToDispense * 500;
+            numNotes -= notesToDispense;
+            cout << "Dispensing " << notesToDispense << " x ₹500 notes = ₹" << dispensed << endl;
+            amount -= dispensed;
+        }
+        if (amount > 0 && nextHandler) {
+            nextHandler->dispense(amount);
+        } else if (amount > 0) {
+            cout << "Remaining amount ₹" << amount << " cannot be fulfilled (insufficient funds)" << endl;
+        }
+    }
+};
+
+// Concrete Handler for ₹100 notes
+class HundredHandler : public MoneyHandler {
+private:
+    int numNotes;
+public:
+    HundredHandler(int notes) : numNotes(notes) {}
+    void dispense(int amount) override {
+        int notesNeeded = amount / 100;
+        if (notesNeeded > 0) {
+            int notesToDispense = min(notesNeeded, numNotes);
+            int dispensed = notesToDispense * 100;
+            numNotes -= notesToDispense;
+            cout << "Dispensing " << notesToDispense << " x ₹100 notes = ₹" << dispensed << endl;
+            amount -= dispensed;
+        }
+        if (amount > 0) {
+            cout << "Remaining amount ₹" << amount << " cannot be fulfilled (insufficient funds)" << endl;
+        }
+    }
+};
+
+// Client
+int main() {
+    // Create handlers with limited notes
+    ThousandHandler thousand(3);   // 3 x ₹1000
+    FiveHundredHandler fiveHundred(5); // 5 x ₹500
+    HundredHandler hundred(20);    // 20 x ₹100
+
+    // Build the chain
+    thousand.setNext(&fiveHundred);
+    fiveHundred.setNext(&hundred);
+
+    // Request ₹3000
+    cout << "Request: ₹3000" << endl;
+    thousand.dispense(3000);
+    cout << endl;
+
+    // Request ₹4000
+    cout << "Request: ₹4000" << endl;
+    thousand.dispense(4000);
+    cout << endl;
+
+    // Request ₹300
+    cout << "Request: ₹300" << endl;
+    thousand.dispense(300);
+    cout << endl;
+
+    return 0;
+}
+```
+
+### 3.4 Sample Output
+
+```
+Request: ₹3000
+Dispensing 3 x ₹1000 notes = ₹3000
+
+Request: ₹4000
+Dispensing 3 x ₹1000 notes = ₹3000
+Dispensing 2 x ₹500 notes = ₹1000
+
+Request: ₹300
+Dispensing 1 x ₹200 notes = ₹200
+Dispensing 1 x ₹100 notes = ₹100
+```
+
+*(Note: The code above doesn't include a ₹200 handler for brevity, but the concept is the same.)*
+
+### 3.5 Flow Diagram
+
+```
+Client (₹4000)
+    │
+    ▼
+ThousandHandler (3 x ₹1000)
+    │ dispenses ₹3000, remaining ₹1000
+    ▼
+FiveHundredHandler (5 x ₹500)
+    │ dispenses ₹1000 (2 notes), remaining ₹0
+    ▼
+HundredHandler (20 x ₹100)
+    │ no remaining amount
+    ▼
+Done
+```
+
+---
+
+## 4. How CoR Solves Inheritance Problems (Simple Example)
+
+### The Inheritance Problem: Class Explosion
+
+Suppose you want to handle different request levels (e.g., logging: INFO, DEBUG, ERROR). Using inheritance alone, you might create a class for each combination of levels:
+
+```
+Logger
+├── InfoLogger
+├── DebugLogger
+├── ErrorLogger
+├── InfoDebugLogger
+├── InfoErrorLogger
+├── DebugErrorLogger
+└── InfoDebugErrorLogger
+```
+
+This leads to **class explosion**. Adding a new level (e.g., `WARN`) would require many new subclasses, and the code becomes rigid and hard to maintain.
+
+### The Chain of Responsibility Solution
+
+Instead of creating subclasses for every combination, use a **chain of handlers**:
+
+- `InfoLogger` handles INFO requests.
+- `DebugLogger` handles DEBUG requests.
+- `ErrorLogger` handles ERROR requests.
+
+Each logger has a reference to the next logger. When a request comes in, it is passed along the chain until a handler can process it.
+
+```
+Client → InfoLogger → DebugLogger → ErrorLogger
+```
+
+**Benefits:**
+- **No class explosion**: Adding a new level just means adding a new handler class.
+- **Dynamic chain**: The chain can be configured at runtime.
+- **Single Responsibility**: Each handler only cares about its level.
+- **Open/Closed**: New handlers can be added without modifying existing code.
+
+**Simple Example:**
+Instead of `InfoDebugErrorLogger`, you have:
+
+```cpp
+InfoLogger info;
+DebugLogger debug;
+ErrorLogger error;
+info.setNext(&debug);
+debug.setNext(&error);
+info.log("INFO: ...");  // handled by InfoLogger
+info.log("ERROR: ..."); // passed to DebugLogger, then ErrorLogger
+```
+
+This demonstrates **"favor composition over inheritance"** and **"program to an interface"**.
+
+---
+
+## 5. Standard Definition
+
+> **"The Chain of Responsibility pattern avoids coupling the sender of a request to its receiver by giving more than one object a chance to handle the request. Chain the receiving objects and pass the request along the chain until an object handles it."**
+
+---
+
+## 6. Real-World Use Cases
+
+| Use Case | Description |
+|----------|-------------|
+| **ATM Cash Dispensing** | Handlers for different denominations. |
+| **Logging Systems** | INFO, DEBUG, ERROR handlers with different levels. |
+| **Leave Request System** | Team Lead → Manager → Director approval chain. |
+| **Event Handling** | GUI event bubbling: child → parent → grandparent. |
+| **Middleware** | Web servers: authentication → logging → routing. |
+| **Vending Machines** | Handlers for different coin denominations. |
+
+---
+
+## 7. Key Takeaways
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    CHAIN OF RESPONSIBILITY — SUMMARY                │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   🎯 PURPOSE                                                        │
+│   Decouple sender from receiver by allowing multiple objects        │
+│   to handle a request.                                              │
+│                                                                      │
+│   🧩 KEY COMPONENTS                                                 │
+│   • Handler – abstract class with handleRequest() and next pointer  │
+│   • ConcreteHandler – implements handleRequest()                    │
+│   • Client – initiates the request to the first handler             │
+│                                                                      │
+│   ✅ BENEFITS                                                       │
+│   • Loose coupling                                                  │
+│   • Dynamic chain configuration                                     │
+│   • Single Responsibility per handler                               │
+│   • Open/Closed Principle                                           │
+│   • Avoids class explosion                                          │
+│                                                                      │
+│   ⚠️ TRADE-OFFS                                                     │
+│   • No guarantee that a request will be handled                     │
+│   • Debugging can be harder (request may pass through many)         │
+│   • Performance overhead if chain is long                           │
+│                                                                      │
+│   🌍 REAL-WORLD USES                                                │
+│   • ATM cash dispensing                                             │
+│   • Logging frameworks                                              │
+│   • Leave approval systems                                          │
+│   • Event propagation                                               │
+│                                                                      │
+│   💡 GOLDEN RULE                                                    │
+│   "When you have a hierarchy of handlers and a request may be       │
+│    handled by any of them, use Chain of Responsibility."            │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Interview Wisdom
+
+The Chain of Responsibility pattern is frequently asked in LLD interviews, especially for problems involving **multi-level approval systems**, **logging frameworks**, and **event handling**. It elegantly demonstrates **composition over inheritance** and helps avoid class explosion. If you hear "the request should be passed along until someone handles it," CoR is likely the right answer.
+
+---
+
+## 23. Build Payment Gateway System (1:00:48)
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
