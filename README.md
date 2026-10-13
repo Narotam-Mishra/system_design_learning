@@ -12688,4 +12688,330 @@ The Composite Pattern is **extremely useful** for any LLD problem involving **hi
 
 ## 20. Template Method Pattern | Step-by-Step Example (UML + Code) (20:21)
 
+This lecture covers the **Template Method Design Pattern** — a behavioral pattern that defines the **skeleton of an algorithm** in a base class and lets subclasses override specific steps **without changing the algorithm’s structure**. The classic example used is an **ML Model Training Pipeline**.
+
+---
+
+## 1. Why This Pattern Matters
+
+- It is a **specific** design pattern, not a generic one.
+- It solves problems where a **fixed sequence of steps (pipeline)** must be followed, but individual steps can vary.
+- Perfect for real-world applications and interviews involving **ordered workflows**.
+
+> **Core idea:** “Define the skeleton of an algorithm in a method, deferring some steps to subclasses.”
+
+---
+
+## 2. Problem: ML Model Training Pipeline
+
+Imagine you are a data scientist working with multiple ML algorithms:
+- Neural Network
+- Decision Tree
+- Random Forest
+- SVM
+- etc.
+
+No matter which model, the **training pipeline** is always the same:
+
+```
+1. Load Data
+2. Preprocess Data
+3. Train Model
+4. Evaluate Model
+5. Save Model
+```
+
+The order must **never** change. For example:
+- You cannot train before preprocessing.
+- You cannot evaluate before training.
+
+### Without Template Method
+
+Each model class would have to implement the entire pipeline itself. A developer might accidentally:
+- Train before preprocessing
+- Evaluate before training
+- Forget to save
+
+This leads to **duplicated code**, **inconsistent order**, and **bugs**.
+
+---
+
+## 3. Solution: Template Method Pattern
+
+Create an abstract base class `ModelTrainer` that defines the **template method** `trainPipeline()`. This method calls the steps in the correct order. Subclasses only override the steps that differ.
+
+### Key Roles
+
+| Role | Description | Example |
+|------|-------------|---------|
+| **Abstract Class** | Defines template method and abstract steps | `ModelTrainer` |
+| **Template Method** | Defines the algorithm’s skeleton / order | `trainPipeline()` |
+| **Primitive Operations** | Steps called by template method | `loadData()`, `preprocessData()`, `trainModel()`, `evaluateModel()`, `saveModel()` |
+| **Concrete Classes** | Override specific steps | `NeuralNetworkTrainer`, `DecisionTreeTrainer` |
+| **Client** | Calls the template method | `main()` |
+
+---
+
+## 4. UML Design
+
+### 4.1 Standard UML for Template Method
+
+```
+                    ┌──────────────────────────────┐
+                    │      <<abstract>>            │
+                    │       AbstractClass          │
+                    ├──────────────────────────────┤
+                    │ + templateMethod(): void     │  ← defines order
+                    │ # step1(): void = 0          │
+                    │ # step2(): void = 0          │
+                    │ # step3(): void = 0          │
+                    └──────────────┬───────────────┘
+                                   △
+                    ┌──────────────┴───────────────┐
+                    │                              │
+                    ▼                              ▼
+       ┌────────────────────────┐    ┌─────────────────────────────┐
+       │    ConcreteClassA      │    │      ConcreteClassB         │
+       ├────────────────────────┤    ├─────────────────────────────┤
+       │ + step1()              │    │ + step1()                   │
+       │ + step2()              │    │ + step2()                   │
+       │ + step3()              │    │ + step3()                   │
+       └────────────────────────┘    └─────────────────────────────┘
+
+       Client ─── calls ───▶ templateMethod()
+```
+
+### 4.2 UML for ML Training Example
+
+```
+                    ┌──────────────────────────────────────┐
+                    │          ModelTrainer                │
+                    │           <<abstract>>               │
+                    ├──────────────────────────────────────┤
+                    │ + trainPipeline(path): void          │  ← template method
+                    ├──────────────────────────────────────┤
+                    │ # loadData(path): void               │  ← common step
+                    │ # preprocessData(): void             │  ← common step
+                    │ # trainModel(): void = 0             │  ← abstract
+                    │ # evaluateModel(): void = 0          │  ← abstract
+                    │ # saveModel(): void                  │  ← common step
+                    └──────────────────┬───────────────────┘
+                                       △
+                    ┌──────────────────┴───────────────────┐
+                    │                                      │
+                    ▼                                      ▼
+       ┌───────────────────────────┐        ┌───────────────────────────┐
+       │  NeuralNetworkTrainer     │        │   DecisionTreeTrainer     │
+       ├───────────────────────────┤        ├───────────────────────────┤
+       │ + trainModel()            │        │ + trainModel()            │
+       │ + evaluateModel()         │        │ + evaluateModel()         │
+       │ + saveModel() (optional)  │        │                           │
+       └───────────────────────────┘        └───────────────────────────┘
+```
+
+**Relationships:**
+- `NeuralNetworkTrainer` **IS-A** `ModelTrainer`
+- `DecisionTreeTrainer` **IS-A** `ModelTrainer`
+- `ModelTrainer` defines the algorithm skeleton; subclasses fill in details.
+
+---
+
+## 5. Code Example (C++)
+
+```cpp
+#include <iostream>
+#include <string>
+using namespace std;
+
+class ModelTrainer {
+public:
+    // Template method: defines the fixed pipeline order
+    void trainPipeline(const string& dataPath) {
+        loadData(dataPath);
+        preprocessData();
+        trainModel();
+        evaluateModel();
+        saveModel();
+    }
+
+    virtual ~ModelTrainer() {}
+
+protected:
+    // Common steps with default implementation
+    virtual void loadData(const string& path) {
+        cout << "[Common] Loading data from " << path << "\n";
+    }
+
+    virtual void preprocessData() {
+        cout << "[Common] Splitting into train/test and normalizing\n";
+    }
+
+    virtual void saveModel() {
+        cout << "[Common] Saving model to disk\n";
+    }
+
+    // Steps that must be provided by subclasses
+    virtual void trainModel() = 0;
+    virtual void evaluateModel() = 0;
+};
+
+class NeuralNetworkTrainer : public ModelTrainer {
+protected:
+    void trainModel() override {
+        cout << "[NeuralNet] Training with 100 epochs and backpropagation\n";
+    }
+
+    void evaluateModel() override {
+        cout << "[NeuralNet] Evaluating accuracy and loss on validation set\n";
+    }
+
+    void saveModel() override {
+        cout << "[NeuralNet] Saving weights as .h5\n";
+    }
+};
+
+class DecisionTreeTrainer : public ModelTrainer {
+protected:
+    void trainModel() override {
+        cout << "[DecisionTree] Training with Gini impurity, max_depth=5\n";
+    }
+
+    void evaluateModel() override {
+        cout << "[DecisionTree] Evaluating accuracy, precision, recall\n";
+    }
+    // Uses default saveModel()
+};
+
+int main() {
+    cout << "--- Training Neural Network ---\n";
+    ModelTrainer* nn = new NeuralNetworkTrainer();
+    nn->trainPipeline("data.csv");
+
+    cout << "\n--- Training Decision Tree ---\n";
+    ModelTrainer* dt = new DecisionTreeTrainer();
+    dt->trainPipeline("data.csv");
+
+    delete nn;
+    delete dt;
+    return 0;
+}
+```
+
+### Output
+
+```
+--- Training Neural Network ---
+[Common] Loading data from data.csv
+[Common] Splitting into train/test and normalizing
+[NeuralNet] Training with 100 epochs and backpropagation
+[NeuralNet] Evaluating accuracy and loss on validation set
+[NeuralNet] Saving weights as .h5
+
+--- Training Decision Tree ---
+[Common] Loading data from data.csv
+[Common] Splitting into train/test and normalizing
+[DecisionTree] Training with Gini impurity, max_depth=5
+[DecisionTree] Evaluating accuracy, precision, recall
+[Common] Saving model to disk
+```
+
+Notice: **Order is always the same**, even though implementations differ.
+
+---
+
+## 6. Standard Definition
+
+> **“The Template Method Pattern defines the skeleton of an algorithm in a method, deferring some steps to subclasses. It lets subclasses redefine certain steps of an algorithm without changing the algorithm’s structure.”**
+
+Also known as the **Hollywood Principle**:  
+*“Don’t call us, we’ll call you.”*  
+The base class calls the subclass methods, not the other way around.
+
+---
+
+## 7. Real-World Use Cases
+
+| Use Case | Fixed Pipeline | Varying Steps |
+|----------|----------------|---------------|
+| **ML Model Training** | Load → Preprocess → Train → Evaluate → Save | Preprocess, Train, Evaluate |
+| **Payment Processing** | Validate → Debit → Credit → Validate Transaction → Complete | Validation, Debit, Credit |
+| **Data Processing ETL** | Extract → Transform → Load → Validate | Transform, Validate |
+| **Order Fulfillment** | Validate Order → Reserve Stock → Payment → Ship → Notify | Payment, Shipping |
+| **Compiler Phases** | Lex → Parse → Analyze → Optimize → Generate | Analysis, Optimization |
+| **Game Loop** | Input → Update → Render → Sync | Update, Render |
+
+Any time you have a **fixed sequence of steps** with **some steps varying**, Template Method is a strong candidate.
+
+---
+
+## 8. Benefits and Trade-offs
+
+### ✅ Benefits
+
+- **Enforces order**: Guarantees the algorithm skeleton is followed.
+- **Code reuse**: Common steps live in the base class.
+- **Open/Closed**: New variants only override specific steps.
+- **Avoids duplication**: No copy-paste of pipeline logic.
+- **Hollywood Principle**: Base class controls flow.
+
+### ⚠️ Trade-offs
+
+- **Uses inheritance**: Can be rigid if steps vary too much.
+- **Fragile base class**: Changes to base class affect all subclasses.
+- **Limited flexibility**: Subclasses cannot change the order, only steps.
+- **Sometimes composition is better**: If order varies, Strategy may be more suitable.
+
+---
+
+## 9. Key Takeaways
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                TEMPLATE METHOD PATTERN — SUMMARY                    │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   🎯 PURPOSE                                                        │
+│   Define the skeleton of an algorithm, letting subclasses            │
+│   redefine certain steps without changing the structure.             │
+│                                                                      │
+│   🧩 KEY COMPONENTS                                                 │
+│   • AbstractClass – defines templateMethod() and primitive ops       │
+│   • Template Method – calls primitive ops in fixed order             │
+│   • Primitive Operations – abstract or concrete steps                │
+│   • ConcreteClass – overrides primitive operations                   │
+│   • Client – calls templateMethod()                                  │
+│                                                                      │
+│   ✅ BENEFITS                                                       │
+│   • Enforces algorithm order                                         │
+│   • Promotes code reuse                                              │
+│   • Follows Open/Closed Principle                                    │
+│   • Eliminates duplicate pipeline code                               │
+│                                                                      │
+│   ⚠️ TRADE-OFFS                                                     │
+│   • Inheritance-based                                                │
+│   • Can be rigid if steps vary greatly                               │
+│   • Fragile base class problem                                       │
+│                                                                      │
+│   🌍 REAL-WORLD USES                                                │
+│   • ML training pipelines                                            │
+│   • Payment processing                                               │
+│   • ETL / data processing                                            │
+│   • Order fulfillment                                                │
+│   • Compiler phases                                                  │
+│                                                                      │
+│   💡 GOLDEN RULE                                                    │
+│   “When you have a fixed sequence of steps and some steps vary,      │
+│    use Template Method.”                                             │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Interview Wisdom
+
+Template Method is often asked in LLD interviews when the problem involves a **pipeline** or **ordered workflow**. If you hear “the steps must happen in this order, but different implementations are possible,” Template Method is likely the right answer. It’s simple, powerful, and widely used in frameworks and libraries.
+
+---
+
+## 21. Proxy Design Pattern (37:24)
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
