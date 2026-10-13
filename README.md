@@ -13014,4 +13014,397 @@ Template Method is often asked in LLD interviews when the problem involves a **p
 
 ## 21. Proxy Design Pattern (37:24)
 
+This lecture covers the **Proxy Design Pattern** — a structural pattern that provides a **surrogate or placeholder** for another object to **control access** to it. It is a very specific, yet widely applicable pattern, often used for lazy loading, access control, and remote object communication.
+
+---
+
+## 1. What is Proxy Pattern?
+
+> **"Provide a surrogate or placeholder for another object to control access to it."**
+
+### Core Idea
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    PROXY PATTERN — CORE IDEA                        │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   Client ──▶ Proxy ──▶ Real Subject                                 │
+│                                                                      │
+│   • Client thinks it's talking to the Real Subject.                 │
+│   • Proxy intercepts the request, performs extra logic,             │
+│     then forwards to Real Subject.                                  │
+│   • Client is unaware of the proxy's existence.                     │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+The proxy **behaves exactly like the real object** (same interface), so the client cannot differentiate between them.
+
+---
+
+## 2. Types of Proxy
+
+The lecture discusses **three main types**:
+
+| Type | Purpose | Example |
+|------|---------|---------|
+| **Virtual Proxy** | Lazy loading of expensive resources | Image viewer that loads image only when displayed |
+| **Protection Proxy** | Access control / authentication | Premium feature only for subscribed users |
+| **Remote Proxy** | Local representative of a remote object | Microservice calling another service over network |
+
+All three share the **same core structure** (IS-A + HAS-A), but differ in intent.
+
+---
+
+## 3. UML Design (Standard)
+
+```
+                    ┌──────────────────────────────┐
+                    │         Client               │
+                    └──────────────┬───────────────┘
+                                   │ uses
+                                   ▼
+                    ┌──────────────────────────────┐
+                    │      <<interface>>           │
+                    │         ISubject             │
+                    ├──────────────────────────────┤
+                    │ + operation(): void = 0      │
+                    └──────────────┬───────────────┘
+                                   △
+                    ┌──────────────┴───────────────┐
+                    │                              │
+                    ▼                              ▼
+       ┌────────────────────────┐    ┌─────────────────────────────┐
+       │      RealSubject       │    │         Proxy               │
+       ├────────────────────────┤    ├─────────────────────────────┤
+       │ + operation()          │    │ - realSubject: RealSubject* │
+       └────────────────────────┘    ├─────────────────────────────┤
+                                     │ + operation()               │
+                                     └─────────────────────────────┘
+                                                    │ has-a
+                                                    ▼
+                                              RealSubject
+```
+
+**Key Relationships:**
+- `Proxy` **IS-A** `ISubject` (so it can be used wherever `ISubject` is expected)
+- `Proxy` **HAS-A** `RealSubject` (so it can delegate requests)
+
+---
+
+## 4. Code Examples
+
+### 4.1 Virtual Proxy: Image Display
+
+**Problem:** Loading an image is expensive. We want to defer loading until `display()` is called.
+
+```cpp
+#include <iostream>
+#include <string>
+using namespace std;
+
+// Interface
+class IImage {
+public:
+    virtual void display() = 0;
+    virtual ~IImage() {}
+};
+
+// Real Subject: Heavy object
+class RealImage : public IImage {
+    string filename;
+public:
+    RealImage(string fname) : filename(fname) {
+        // Expensive loading operation
+        cout << "Loading image from disk: " << filename << endl;
+    }
+    void display() override {
+        cout << "Displaying image: " << filename << endl;
+    }
+};
+
+// Proxy: Virtual Proxy for lazy loading
+class ImageProxy : public IImage {
+    RealImage* realImage;
+    string filename;
+public:
+    ImageProxy(string fname) : realImage(nullptr), filename(fname) {}
+    
+    void display() override {
+        if (realImage == nullptr) {
+            realImage = new RealImage(filename); // Lazy load
+        }
+        realImage->display();
+    }
+    
+    ~ImageProxy() {
+        delete realImage;
+    }
+};
+
+int main() {
+    IImage* image = new ImageProxy("sample.jpg");
+    // RealImage is not loaded yet
+    cout << "Proxy created. Real image not loaded yet." << endl;
+    
+    image->display(); // Now it loads and displays
+    image->display(); // Uses already loaded image
+    
+    delete image;
+    return 0;
+}
+```
+
+**Output:**
+```
+Proxy created. Real image not loaded yet.
+Loading image from disk: sample.jpg
+Displaying image: sample.jpg
+Displaying image: sample.jpg
+```
+
+---
+
+### 4.2 Protection Proxy: Document Reader
+
+**Problem:** Only premium users can unlock PDFs.
+
+```cpp
+#include <iostream>
+#include <string>
+using namespace std;
+
+// Interface
+class IDocumentReader {
+public:
+    virtual void unlockPDF(const string& file, const string& password) = 0;
+    virtual ~IDocumentReader() {}
+};
+
+// Real Subject
+class RealDocumentReader : public IDocumentReader {
+public:
+    void unlockPDF(const string& file, const string& password) override {
+        cout << "Unlocking PDF: " << file << " with password: " << password << endl;
+    }
+};
+
+// User class
+class User {
+    string name;
+    bool isPremium;
+public:
+    User(string n, bool premium) : name(n), isPremium(premium) {}
+    bool getIsPremium() const { return isPremium; }
+    string getName() const { return name; }
+};
+
+// Protection Proxy
+class DocumentProxy : public IDocumentReader {
+    RealDocumentReader* realReader;
+    User* user;
+public:
+    DocumentProxy(User* u) : realReader(new RealDocumentReader()), user(u) {}
+    
+    void unlockPDF(const string& file, const string& password) override {
+        if (user->getIsPremium()) {
+            realReader->unlockPDF(file, password);
+        } else {
+            cout << "Access Denied: Premium feature only." << endl;
+        }
+    }
+    
+    ~DocumentProxy() {
+        delete realReader;
+    }
+};
+
+int main() {
+    User* freeUser = new User("Alice", false);
+    User* premiumUser = new User("Bob", true);
+    
+    IDocumentReader* reader1 = new DocumentProxy(freeUser);
+    IDocumentReader* reader2 = new DocumentProxy(premiumUser);
+    
+    reader1->unlockPDF("secret.pdf", "1234");  // Denied
+    reader2->unlockPDF("secret.pdf", "1234");  // Allowed
+    
+    delete reader1;
+    delete reader2;
+    delete freeUser;
+    delete premiumUser;
+    return 0;
+}
+```
+
+**Output:**
+```
+Access Denied: Premium feature only.
+Unlocking PDF: secret.pdf with password: 1234
+```
+
+---
+
+### 4.3 Remote Proxy: Data Service
+
+**Problem:** A service running on a remote server; local proxy handles network connection.
+
+```cpp
+#include <iostream>
+#include <string>
+using namespace std;
+
+// Interface
+class IDataService {
+public:
+    virtual string fetchData() = 0;
+    virtual ~IDataService() {}
+};
+
+// Real Subject (remote)
+class DataService : public IDataService {
+public:
+    string fetchData() override {
+        return "Data from remote server";
+    }
+};
+
+// Remote Proxy (local representative)
+class DataServiceProxy : public IDataService {
+    DataService* realService;
+    string serverAddress;
+public:
+    DataServiceProxy(string addr) : realService(nullptr), serverAddress(addr) {}
+    
+    string fetchData() override {
+        if (realService == nullptr) {
+            // Establish connection over network
+            cout << "Connecting to remote server at " << serverAddress << endl;
+            realService = new DataService();
+        }
+        return realService->fetchData();
+    }
+    
+    ~DataServiceProxy() {
+        delete realService;
+    }
+};
+
+int main() {
+    IDataService* service = new DataServiceProxy("192.168.1.100");
+    cout << service->fetchData() << endl;
+    cout << service->fetchData() << endl; // Reuses connection
+    delete service;
+    return 0;
+}
+```
+
+**Output:**
+```
+Connecting to remote server at 192.168.1.100
+Data from remote server
+Data from remote server
+```
+
+---
+
+## 5. How Proxy Solves Inheritance Problems (Simple Example)
+
+### The Inheritance Problem: Class Explosion
+
+Suppose you want to add **lazy loading** to an expensive object. Using inheritance alone, you might create:
+
+```
+ExpensiveObject
+├── ExpensiveObjectWithLazyLoading
+├── ExpensiveObjectWithAccessControl
+├── ExpensiveObjectWithRemoteAccess
+└── ... (and combinations)
+```
+
+Each new combination (lazy + secure, remote + secure, etc.) would require a new subclass. This is **class explosion**.
+
+### The Proxy Solution: Composition over Inheritance
+
+The Proxy pattern uses **composition** (HAS-A) to add behavior without modifying the real object or creating subclasses:
+
+- `Proxy` **implements** the same interface as `RealSubject`.
+- `Proxy` **holds a reference** to `RealSubject`.
+- Additional logic (lazy loading, access control, network calls) is implemented in the proxy's methods.
+- The client uses the proxy transparently.
+
+**Simple Example:** Instead of `ExpensiveObjectWithLazyLoading`, you have `LazyProxy` that holds an `ExpensiveObject` and creates it only when needed. No new subclasses for each combination.
+
+This demonstrates **"favor composition over inheritance"** and **"program to an interface"**.
+
+---
+
+## 6. Standard Definition
+
+> **"The Proxy Pattern provides a surrogate or placeholder for another object to control access to it."**
+
+---
+
+## 7. Real-World Use Cases
+
+| Use Case | Proxy Type | Description |
+|----------|------------|-------------|
+| **Image loading** | Virtual | Load images only when displayed |
+| **Premium features** | Protection | Restrict access to subscribed users |
+| **Microservices** | Remote | Local proxy for remote service calls |
+| **Database connection** | Virtual | Lazy connection establishment |
+| **Caching** | Virtual/Caching | Cache results of expensive operations |
+| **Firewall** | Protection | Control network access |
+| **Smart references** | Virtual | Reference counting, copy-on-write |
+
+---
+
+## 8. Key Takeaways
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    PROXY PATTERN — SUMMARY                          │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   🎯 PURPOSE                                                        │
+│   Control access to an object by providing a surrogate.             │
+│                                                                      │
+│   🧩 KEY COMPONENTS                                                 │
+│   • ISubject – common interface for RealSubject and Proxy           │
+│   • RealSubject – the actual object being proxied                   │
+│   • Proxy – holds reference to RealSubject, adds extra logic        │
+│   • Client – uses ISubject, unaware of Proxy                        │
+│                                                                      │
+│   ✅ BENEFITS                                                       │
+│   • Lazy loading of expensive objects (Virtual Proxy)               │
+│   • Access control and security (Protection Proxy)                  │
+│   • Local representation of remote objects (Remote Proxy)           │
+│   • Promotes composition over inheritance                           │
+│   • Client code remains unchanged                                   │
+│                                                                      │
+│   ⚠️ TRADE-OFFS                                                     │
+│   • Adds an extra layer of indirection                              │
+│   • Can introduce slight overhead                                   │
+│                                                                      │
+│   🌍 REAL-WORLD USES                                                │
+│   • Image viewers, video players                                    │
+│   • Premium/subscription features                                   │
+│   • Microservices architecture                                      │
+│   • Database connections, caching                                   │
+│                                                                      │
+│   💡 GOLDEN RULE                                                    │
+│   "When you need to control access to an object, use Proxy."        │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Interview Wisdom
+
+The Proxy pattern is **very common in LLD interviews** and real-world systems. If a problem involves **lazy loading, access control, or remote communication**, Proxy is likely the right answer. It elegantly demonstrates **composition over inheritance** and helps avoid class explosion. It is simple to understand and implement, yet powerful in its applications.
+
+---
+
+## 22. Chain of Responsibility Pattern | Build Cash Dispenser(UML & Code) (29:49)
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
