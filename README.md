@@ -13780,4 +13780,6 @@ The Chain of Responsibility pattern is frequently asked in LLD interviews, espec
 
 ## 23. Build Payment Gateway System (1:00:48)
 
+
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
