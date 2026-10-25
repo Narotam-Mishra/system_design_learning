@@ -13780,6 +13780,1039 @@ The Chain of Responsibility pattern is frequently asked in LLD interviews, espec
 
 ## 23. Build Payment Gateway System (1:00:48)
 
+This lecture is a complete LLD interview walkthrough for designing a **Payment Gateway System** — the kind of system that applications like Amazon, Zomato, Swiggy, Uber, etc. integrate to accept payments. It combines multiple design patterns: **Template Method, Strategy, Proxy, Factory, Singleton**.
 
+---
+
+## 1. Requirements Analysis
+
+### Functional Requirements
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    PAYMENT GATEWAY — REQUIREMENTS                   │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   ✅ Support Multiple Providers                                    │
+│      • Paytm, Razorpay (extensible for GPay, etc.)                  │
+│      • Plug-and-play model                                          │
+│                                                                      │
+│   ✅ Standard Payment Flow with Validations                        │
+│      • Validate → Initiate → Confirm (FIXED ORDER)                  │
+│      • Order must never change                                      │
+│                                                                      │
+│   ✅ Error Handling & Retry Mechanism                              │
+│      • If payment fails, retry internally                           │
+│      • Configurable retry count                                     │
+│                                                                      │
+│   ✅ Plug-and-play with Single Entry Point                         │
+│      • Any application can integrate easily                         │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Non-Functional Requirements
+- Scalable, plug-and-play, follows SOLID principles
+
+---
+
+## 2. Understanding a "Gateway" in LLD
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    WHAT IS A GATEWAY (LLD)?                         │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   ┌────────────────────────────────────────┐                        │
+│   │       Application Boundary             │                        │
+│   │                                        │                        │
+│   │   ┌──────┐   ┌──────┐   ┌──────┐       │                        │
+│   │   │Class │   │Class │   │Class │       │                        │
+│   │   └──────┘   └──────┘   └──────┘       │                        │
+│   │       │                                │                        │
+│   │       ▼                                │                        │
+│   │   ┌─────────────┐                      │                        │
+│   │   │   Gateway   │  ← Only this class   │                        │
+│   │   └──────┬──────┘    talks to outside  │                        │
+│   └──────────┼─────────────────────────────┘                        │
+│              │                                                       │
+│              │  HTTP call over internet                             │
+│              ▼                                                       │
+│   ┌────────────────────────────────────────┐                        │
+│   │    External World (e.g., Paytm Server) │                        │
+│   │    ┌─────────────────────────────┐     │                        │
+│   │    │  Paytm Banking System       │     │                        │
+│   │    │  - processPayment()         │     │                        │
+│   │    └─────────────────────────────┘     │                        │
+│   └────────────────────────────────────────┘                        │
+│                                                                      │
+│   Note: In our LLD, we "simulate" the banking system locally.      │
+│         In reality, it lives on a remote server.                    │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 3. Design Patterns Applied
+
+| Pattern | Where Used | Why |
+|---------|-----------|-----|
+| **Template Method** | `PaymentGateway.processPayment()` | Fix order: Validate → Initiate → Confirm |
+| **Proxy** | `PaymentGatewayProxy` | Retry mechanism, protect real gateway |
+| **Factory** | `GatewayFactory` | Create Paytm/Razorpay gateways |
+| **Singleton** | `GatewayFactory`, `PaymentService`, `PaymentController` | Single source of truth |
+| **Strategy (implicit)** | Multiple gateways | Extensible payment providers |
+
+---
+
+## 4. UML Design
+
+### 4.1 Complete UML Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    PAYMENT GATEWAY — COMPLETE UML                           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   [MODEL]                                                                   │
+│   ┌─────────────────────────────────┐                                       │
+│   │      PaymentRequest             │                                       │
+│   ├─────────────────────────────────┤                                       │
+│   │ - sender: string                │                                       │
+│   │ - receiver: string              │                                       │
+│   │ - amount: double                │                                       │
+│   │ - currency: string              │                                       │
+│   ├─────────────────────────────────┤                                       │
+│   │ + getters()/setters()           │                                       │
+│   └─────────────────────────────────┘                                       │
+│                                                                              │
+│   [BANKING SYSTEM HIERARCHY — simulated remote system]                     │
+│   ┌──────────────────────────────┐                                          │
+│   │      <<interface>>           │                                          │
+│   │      IBankingSystem          │                                          │
+│   ├──────────────────────────────┤                                          │
+│   │ + processPayment(double)     │                                          │
+│   └──────────────┬───────────────┘                                          │
+│                  △                                                          │
+│      ┌───────────┴────────────┐                                             │
+│      ▼                        ▼                                             │
+│   ┌──────────────┐      ┌──────────────────┐                               │
+│   │PaytmBanking  │      │RazorpayBanking   │                               │
+│   │System        │      │System            │                               │
+│   └──────────────┘      └──────────────────┘                               │
+│                                                                              │
+│   [PAYMENT GATEWAY HIERARCHY]                                              │
+│   ┌────────────────────────────────┐                                        │
+│   │  <<abstract>>                  │                                        │
+│   │  PaymentGateway                │                                        │
+│   ├────────────────────────────────┤                                        │
+│   │ # bankingSystem: IBankingSystem│                                        │
+│   ├────────────────────────────────┤                                        │
+│   │ + processPayment(req): bool    │  ← Template Method                     │
+│   │ # validatePayment(req): bool   │  ← virtual                             │
+│   │ # initiatePayment(req): bool   │  ← virtual                             │
+│   │ # confirmPayment(req): bool    │  ← virtual                             │
+│   └───────────────┬────────────────┘                                        │
+│                   △                                                          │
+│      ┌────────────┼────────────┐                                            │
+│      ▼            ▼            ▼                                            │
+│   ┌──────────┐ ┌──────────┐ ┌─────────────────┐                            │
+│   │Paytm     │ │Razorpay  │ │PaymentGateway   │                            │
+│   │Gateway   │ │Gateway   │ │Proxy            │                            │
+│   └──────────┘ └──────────┘ ├─────────────────┤                            │
+│   (composed)   (composed)   │ - real: PG*     │                            │
+│      ◆             ◆        │ - maxRetries    │                            │
+│      │             │        ├─────────────────┤                            │
+│      ▼             ▼        │ + processPayment│  ← retry logic             │
+│   PaytmBS     RazorpayBS    │ # validate()    │  ← delegate                │
+│                             │ # initiate()    │  ← delegate                │
+│                             │ # confirm()     │  ← delegate                │
+│                             └─────────────────┘                            │
+│                                                                              │
+│   [FACTORY]                                                                │
+│   ┌─────────────────────────────────┐                                       │
+│   │   GatewayFactory <<singleton>>  │                                       │
+│   ├─────────────────────────────────┤                                       │
+│   │ + getInstance(): GatewayFactory │                                       │
+│   │ + getGateway(GatewayType): PG*  │                                       │
+│   └─────────────────────────────────┘                                       │
+│                       │                                                      │
+│                       │ creates (always wraps in proxy)                     │
+│                       ▼                                                      │
+│              PaymentGatewayProxy                                            │
+│                                                                              │
+│   [SERVICE LAYER]                                                          │
+│   ┌──────────────────────────────────┐                                      │
+│   │   PaymentService <<singleton>>   │                                      │
+│   ├──────────────────────────────────┤                                      │
+│   │ - gateway: PaymentGateway*       │                                      │
+│   ├──────────────────────────────────┤                                      │
+│   │ + setGateway(PaymentGateway*)    │                                      │
+│   │ + processPayment(req): bool      │                                      │
+│   └──────────────────────────────────┘                                      │
+│                                                                              │
+│   [CONTROLLER LAYER — single entry point]                                  │
+│   ┌──────────────────────────────────┐                                      │
+│   │ PaymentController <<singleton>>  │                                      │
+│   ├──────────────────────────────────┤                                      │
+│   │ - service: PaymentService*       │                                      │
+│   ├──────────────────────────────────┤                                      │
+│   │ + handlePayment(type, req): bool │                                      │
+│   └──────────────────────────────────┘                                      │
+│                                                                              │
+│   Client ──▶ PaymentController ──▶ PaymentService ──▶ Proxy ──▶ Gateway    │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 5. Base Code Implementation (C++)
+
+### 5.1 Model & Banking System
+
+```cpp
+#include <iostream>
+#include <string>
+#include <random>
+#include <memory>
+#include <mutex>
+#include <thread>
+#include <chrono>
+using namespace std;
+
+// ============ MODEL ============
+class PaymentRequest {
+    string sender, receiver;
+    double amount;
+    string currency;
+public:
+    PaymentRequest(string s, string r, double a, string c)
+        : sender(s), receiver(r), amount(a), currency(c) {}
+    string getSender() const { return sender; }
+    string getReceiver() const { return receiver; }
+    double getAmount() const { return amount; }
+    string getCurrency() const { return currency; }
+};
+
+// ============ BANKING SYSTEM (simulated remote) ============
+class IBankingSystem {
+public:
+    virtual bool processPayment(double amount) = 0;
+    virtual ~IBankingSystem() {}
+};
+
+class PaytmBankingSystem : public IBankingSystem {
+public:
+    bool processPayment(double amount) override {
+        static mt19937 rng(random_device{}());
+        uniform_int_distribution<int> dist(1, 100);
+        return dist(rng) <= 20;  // 20% success
+    }
+};
+
+class RazorpayBankingSystem : public IBankingSystem {
+public:
+    bool processPayment(double amount) override {
+        static mt19937 rng(random_device{}());
+        uniform_int_distribution<int> dist(1, 100);
+        return dist(rng) <= 90;  // 90% success
+    }
+};
+```
+
+### 5.2 Payment Gateway (Template Method)
+
+```cpp
+// ============ TEMPLATE METHOD: PaymentGateway ============
+class PaymentGateway {
+protected:
+    IBankingSystem* bankingSystem;
+public:
+    PaymentGateway() : bankingSystem(nullptr) {}
+
+    // Template Method — fixed order of execution
+    virtual bool processPayment(const PaymentRequest& req) {
+        if (!validatePayment(req)) {
+            throw runtime_error("Validation Failed for " + req.getSender());
+        }
+        if (!initiatePayment(req)) {
+            throw runtime_error("Initiation Failed for " + req.getSender());
+        }
+        if (!confirmPayment(req)) {
+            throw runtime_error("Confirmation Failed for " + req.getSender());
+        }
+        return true;
+    }
+
+    virtual bool validatePayment(const PaymentRequest& req) = 0;
+    virtual bool initiatePayment(const PaymentRequest& req) = 0;
+    virtual bool confirmPayment(const PaymentRequest& req) = 0;
+
+    virtual ~PaymentGateway() { delete bankingSystem; }
+};
+
+// ============ CONCRETE: PaytmGateway ============
+class PaytmGateway : public PaymentGateway {
+public:
+    PaytmGateway() { bankingSystem = new PaytmBankingSystem(); }
+
+    bool validatePayment(const PaymentRequest& req) override {
+        cout << "[Paytm] Validating payment for " << req.getSender() << "\n";
+        return req.getAmount() > 0 && req.getCurrency() == "INR";
+    }
+
+    bool initiatePayment(const PaymentRequest& req) override {
+        cout << "[Paytm] Initiating ₹" << req.getAmount()
+             << " from " << req.getSender() << " to " << req.getReceiver() << "\n";
+        return bankingSystem->processPayment(req.getAmount());
+    }
+
+    bool confirmPayment(const PaymentRequest& req) override {
+        cout << "[Paytm] Confirming payment\n";
+        return true;
+    }
+};
+
+// ============ CONCRETE: RazorpayGateway ============
+class RazorpayGateway : public PaymentGateway {
+public:
+    RazorpayGateway() { bankingSystem = new RazorpayBankingSystem(); }
+
+    bool validatePayment(const PaymentRequest& req) override {
+        cout << "[Razorpay] Validating payment for " << req.getSender() << "\n";
+        return req.getAmount() > 0;
+    }
+
+    bool initiatePayment(const PaymentRequest& req) override {
+        cout << "[Razorpay] Initiating " << req.getCurrency() << " "
+             << req.getAmount() << " from " << req.getSender() << "\n";
+        return bankingSystem->processPayment(req.getAmount());
+    }
+
+    bool confirmPayment(const PaymentRequest& req) override {
+        cout << "[Razorpay] Confirming payment\n";
+        return true;
+    }
+};
+```
+
+### 5.3 Proxy with Retry (Linear Retry — base version)
+
+```cpp
+// ============ PROXY: PaymentGatewayProxy ============
+class PaymentGatewayProxy : public PaymentGateway {
+private:
+    PaymentGateway* realGateway;
+    int maxRetries;
+
+public:
+    PaymentGatewayProxy(PaymentGateway* gateway, int retries)
+        : realGateway(gateway), maxRetries(retries) {}
+
+    // Override template method to add retry logic
+    bool processPayment(const PaymentRequest& req) override {
+        for (int attempt = 1; attempt <= maxRetries; ++attempt) {
+            try {
+                cout << "[Proxy] Attempt " << attempt << "/" << maxRetries << "\n";
+                if (realGateway->processPayment(req)) {
+                    return true;
+                }
+            } catch (const exception& e) {
+                cout << "[Proxy] Attempt " << attempt << " failed: " << e.what() << "\n";
+            }
+        }
+        throw runtime_error("Payment failed after " + to_string(maxRetries)
+                            + " retries for " + req.getSender());
+    }
+
+    // Delegate the step methods
+    bool validatePayment(const PaymentRequest& req) override {
+        return realGateway->validatePayment(req);
+    }
+    bool initiatePayment(const PaymentRequest& req) override {
+        return realGateway->initiatePayment(req);
+    }
+    bool confirmPayment(const PaymentRequest& req) override {
+        return realGateway->confirmPayment(req);
+    }
+
+    ~PaymentGatewayProxy() { delete realGateway; }
+};
+```
+
+### 5.4 Factory (Singleton)
+
+```cpp
+// ============ FACTORY ============
+enum class GatewayType { PAYTM, RAZORPAY };
+
+class GatewayFactory {
+private:
+    static GatewayFactory* instance;
+    static mutex mtx;
+    GatewayFactory() {}
+
+public:
+    static GatewayFactory* getInstance() {
+        lock_guard<mutex> lock(mtx);
+        if (instance == nullptr) instance = new GatewayFactory();
+        return instance;
+    }
+
+    PaymentGateway* getGateway(GatewayType type) {
+        if (type == GatewayType::PAYTM) {
+            // Wrap Paytm in proxy with 3 retries
+            return new PaymentGatewayProxy(new PaytmGateway(), 3);
+        } else {
+            // Wrap Razorpay in proxy with 1 retry
+            return new PaymentGatewayProxy(new RazorpayGateway(), 1);
+        }
+    }
+};
+GatewayFactory* GatewayFactory::instance = nullptr;
+mutex GatewayFactory::mtx;
+```
+
+### 5.5 Service and Controller (Singletons)
+
+```cpp
+// ============ SERVICE ============
+class PaymentService {
+private:
+    static PaymentService* instance;
+    static mutex mtx;
+    PaymentGateway* gateway;
+    PaymentService() : gateway(nullptr) {}
+
+public:
+    static PaymentService* getInstance() {
+        lock_guard<mutex> lock(mtx);
+        if (instance == nullptr) instance = new PaymentService();
+        return instance;
+    }
+
+    void setGateway(PaymentGateway* g) {
+        if (gateway) delete gateway;
+        gateway = g;
+    }
+
+    bool processPayment(const PaymentRequest& req) {
+        if (!gateway) throw runtime_error("No gateway set");
+        return gateway->processPayment(req);
+    }
+};
+PaymentService* PaymentService::instance = nullptr;
+mutex PaymentService::mtx;
+
+// ============ CONTROLLER (single entry point) ============
+class PaymentController {
+private:
+    static PaymentController* instance;
+    static mutex mtx;
+    PaymentService* service;
+    PaymentController() : service(PaymentService::getInstance()) {}
+
+public:
+    static PaymentController* getInstance() {
+        lock_guard<mutex> lock(mtx);
+        if (instance == nullptr) instance = new PaymentController();
+        return instance;
+    }
+
+    bool handlePayment(GatewayType type, const PaymentRequest& req) {
+        PaymentGateway* pg = GatewayFactory::getInstance()->getGateway(type);
+        service->setGateway(pg);
+        return service->processPayment(req);
+    }
+};
+PaymentController* PaymentController::instance = nullptr;
+mutex PaymentController::mtx;
+
+// ============ CLIENT ============
+int main() {
+    PaymentRequest req("Aditya", "Shubham", 1000, "INR");
+
+    try {
+        bool ok = PaymentController::getInstance()->handlePayment(
+            GatewayType::PAYTM, req);
+        cout << (ok ? "SUCCESS" : "FAIL") << "\n";
+    } catch (const exception& e) {
+        cout << "FAILED: " << e.what() << "\n";
+    }
+    return 0;
+}
+```
+
+---
+
+## 6. Homework Solution (Full Extended Code)
+
+### 6.1 Homework Requirements
+
+1. **Scalable Retry Mechanism** — Support **Linear** and **Exponential Backoff** retries.
+2. **Recurring Payment Flow** — Add support for subscriptions (e.g., YouTube Premium, Netflix).
+
+### 6.2 Extended Design
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    EXTENDED DESIGN                                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   [RETRY STRATEGY — Strategy Pattern]                                       │
+│   ┌──────────────────────────────┐                                          │
+│   │  <<interface>>               │                                          │
+│   │  RetryStrategy               │                                          │
+│   ├──────────────────────────────┤                                          │
+│   │ + executeWithRetry(callable, │                                          │
+│   │     maxRetries): bool        │                                          │
+│   └──────────────┬───────────────┘                                          │
+│                  △                                                          │
+│      ┌───────────┴──────────┬──────────────────┐                            │
+│      ▼                      ▼                  ▼                            │
+│   ┌──────────────┐  ┌───────────────┐  ┌──────────────┐                    │
+│   │LinearRetry   │  │ExponentialRetry│ │NoRetry       │                    │
+│   │              │  │(Backoff)      │ │              │                    │
+│   └──────────────┘  └───────────────┘  └──────────────┘                    │
+│                                                                              │
+│   [RECURRING PAYMENT — extend Template Method]                              │
+│   ┌──────────────────────────────┐                                          │
+│   │  <<abstract>>                │                                          │
+│   │  PaymentGateway              │                                          │
+│   ├──────────────────────────────┤                                          │
+│   │ + processPayment(req): bool  │  ← one-time payment                     │
+│   │ + processRecurringPayment(   │  ← new template method                  │
+│   │     req, months): bool       │                                          │
+│   └──────────────────────────────┘                                          │
+│                                                                              │
+│   Both processPayment and processRecurringPayment use the same             │
+│   validate → initiate → confirm skeleton internally.                        │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 6.3 Full Extended Code
+
+```cpp
+#include <iostream>
+#include <string>
+#include <vector>
+#include <memory>
+#include <mutex>
+#include <thread>
+#include <chrono>
+#include <functional>
+#include <random>
+using namespace std;
+
+// ============================================================
+// MODEL
+// ============================================================
+class PaymentRequest {
+    string sender, receiver;
+    double amount;
+    string currency;
+public:
+    PaymentRequest(string s, string r, double a, string c = "INR")
+        : sender(s), receiver(r), amount(a), currency(c) {}
+    string getSender() const { return sender; }
+    string getReceiver() const { return receiver; }
+    double getAmount() const { return amount; }
+    string getCurrency() const { return currency; }
+};
+
+// ============================================================
+// BANKING SYSTEM (simulated remote)
+// ============================================================
+class IBankingSystem {
+public:
+    virtual bool processPayment(double amount) = 0;
+    virtual ~IBankingSystem() {}
+};
+
+class PaytmBankingSystem : public IBankingSystem {
+public:
+    bool processPayment(double amount) override {
+        static mt19937 rng(random_device{}());
+        uniform_int_distribution<int> dist(1, 100);
+        return dist(rng) <= 30;  // 30% success
+    }
+};
+
+class RazorpayBankingSystem : public IBankingSystem {
+public:
+    bool processPayment(double amount) override {
+        static mt19937 rng(random_device{}());
+        uniform_int_distribution<int> dist(1, 100);
+        return dist(rng) <= 90;  // 90% success
+    }
+};
+
+// ============================================================
+// HOMEWORK 1: RETRY STRATEGY (Strategy Pattern)
+// ============================================================
+class IRetryStrategy {
+public:
+    virtual bool executeWithRetry(
+        function<bool()> operation,
+        int maxRetries,
+        const string& context) = 0;
+    virtual ~IRetryStrategy() {}
+};
+
+// Linear retry: fixed delay between attempts
+class LinearRetryStrategy : public IRetryStrategy {
+    int delayMs;
+public:
+    LinearRetryStrategy(int delay = 0) : delayMs(delay) {}
+
+    bool executeWithRetry(function<bool()> op, int maxRetries,
+                          const string& context) override {
+        for (int attempt = 1; attempt <= maxRetries; ++attempt) {
+            cout << "[LinearRetry] " << context
+                 << " attempt " << attempt << "/" << maxRetries << "\n";
+            try {
+                if (op()) return true;
+            } catch (const exception& e) {
+                cout << "[LinearRetry] Attempt " << attempt
+                     << " error: " << e.what() << "\n";
+            }
+            if (delayMs > 0 && attempt < maxRetries) {
+                this_thread::sleep_for(chrono::milliseconds(delayMs));
+            }
+        }
+        return false;
+    }
+};
+
+// Exponential backoff: delay doubles each attempt
+class ExponentialRetryStrategy : public IRetryStrategy {
+    int baseDelayMs;
+public:
+    ExponentialRetryStrategy(int baseDelay = 100) : baseDelayMs(baseDelay) {}
+
+    bool executeWithRetry(function<bool()> op, int maxRetries,
+                          const string& context) override {
+        for (int attempt = 1; attempt <= maxRetries; ++attempt) {
+            cout << "[ExpRetry] " << context
+                 << " attempt " << attempt << "/" << maxRetries << "\n";
+            try {
+                if (op()) return true;
+            } catch (const exception& e) {
+                cout << "[ExpRetry] Attempt " << attempt
+                     << " error: " << e.what() << "\n";
+            }
+            if (attempt < maxRetries) {
+                int delay = baseDelayMs * (1 << (attempt - 1));  // 100, 200, 400...
+                cout << "[ExpRetry] Backing off " << delay << "ms\n";
+                this_thread::sleep_for(chrono::milliseconds(delay));
+            }
+        }
+        return false;
+    }
+};
+
+// ============================================================
+// HOMEWORK 2: PAYMENT GATEWAY (Template Method)
+// Extended with recurring payment support
+// ============================================================
+class PaymentGateway {
+protected:
+    IBankingSystem* bankingSystem;
+public:
+    PaymentGateway() : bankingSystem(nullptr) {}
+    virtual ~PaymentGateway() { delete bankingSystem; }
+
+    // ---- TEMPLATE METHOD 1: One-time payment ----
+    virtual bool processPayment(const PaymentRequest& req) {
+        if (!validatePayment(req)) {
+            throw runtime_error("Validation Failed for " + req.getSender());
+        }
+        if (!initiatePayment(req)) {
+            throw runtime_error("Initiation Failed for " + req.getSender());
+        }
+        if (!confirmPayment(req)) {
+            throw runtime_error("Confirmation Failed for " + req.getSender());
+        }
+        return true;
+    }
+
+    // ---- TEMPLATE METHOD 2: Recurring payment (subscription) ----
+    virtual bool processRecurringPayment(const PaymentRequest& req,
+                                        int months) {
+        cout << "\n=== Recurring Payment: " << months << " months for "
+             << req.getSender() << " ===\n";
+
+        if (!validateRecurringSetup(req)) {
+            throw runtime_error("Recurring setup validation failed");
+        }
+
+        // Charge for first month immediately
+        double totalCharged = 0;
+        for (int month = 1; month <= months; ++month) {
+            cout << "\n--- Month " << month << " ---\n";
+            if (!processPayment(req)) {  // reuse one-time flow
+                throw runtime_error("Recurring payment failed at month "
+                                    + to_string(month));
+            }
+            totalCharged += req.getAmount();
+        }
+
+        if (!confirmRecurring(req, totalCharged)) {
+            throw runtime_error("Recurring confirmation failed");
+        }
+        return true;
+    }
+
+    // ---- Steps (virtual, overridable) ----
+    virtual bool validatePayment(const PaymentRequest&) = 0;
+    virtual bool initiatePayment(const PaymentRequest&) = 0;
+    virtual bool confirmPayment(const PaymentRequest&) = 0;
+
+    // ---- Recurring-specific hooks (can be overridden) ----
+    virtual bool validateRecurringSetup(const PaymentRequest& req) {
+        cout << "[Default] Validating recurring setup\n";
+        return req.getAmount() > 0;
+    }
+
+    virtual bool confirmRecurring(const PaymentRequest& req, double total) {
+        cout << "[Default] Recurring confirmed: total ₹" << total << "\n";
+        return true;
+    }
+};
+
+// ============ CONCRETE: Paytm ============
+class PaytmGateway : public PaymentGateway {
+public:
+    PaytmGateway() { bankingSystem = new PaytmBankingSystem(); }
+
+    bool validatePayment(const PaymentRequest& req) override {
+        cout << "[Paytm] Validating " << req.getSender() << "\n";
+        return req.getAmount() > 0 && req.getCurrency() == "INR";
+    }
+    bool initiatePayment(const PaymentRequest& req) override {
+        cout << "[Paytm] Initiating ₹" << req.getAmount()
+             << " from " << req.getSender() << "\n";
+        return bankingSystem->processPayment(req.getAmount());
+    }
+    bool confirmPayment(const PaymentRequest&) override {
+        cout << "[Paytm] Confirmed\n";
+        return true;
+    }
+
+    bool validateRecurringSetup(const PaymentRequest& req) override {
+        cout << "[Paytm] Validating recurring (mandate registration)\n";
+        return req.getAmount() > 0 && req.getCurrency() == "INR";
+    }
+};
+
+// ============ CONCRETE: Razorpay ============
+class RazorpayGateway : public PaymentGateway {
+public:
+    RazorpayGateway() { bankingSystem = new RazorpayBankingSystem(); }
+
+    bool validatePayment(const PaymentRequest& req) override {
+        cout << "[Razorpay] Validating " << req.getSender() << "\n";
+        return req.getAmount() > 0;
+    }
+    bool initiatePayment(const PaymentRequest& req) override {
+        cout << "[Razorpay] Initiating " << req.getCurrency() << " "
+             << req.getAmount() << "\n";
+        return bankingSystem->processPayment(req.getAmount());
+    }
+    bool confirmPayment(const PaymentRequest&) override {
+        cout << "[Razorpay] Confirmed\n";
+        return true;
+    }
+
+    bool validateRecurringSetup(const PaymentRequest& req) override {
+        cout << "[Razorpay] Validating recurring (subscription plan)\n";
+        return req.getAmount() > 0;
+    }
+
+    bool confirmRecurring(const PaymentRequest& req, double total) override {
+        cout << "[Razorpay] Recurring total ₹" << total
+             << " for " << req.getSender() << "\n";
+        return true;
+    }
+};
+
+// ============================================================
+// PROXY: retry using pluggable strategy
+// ============================================================
+class PaymentGatewayProxy : public PaymentGateway {
+private:
+    PaymentGateway* realGateway;
+    int maxRetries;
+    IRetryStrategy* retryStrategy;
+
+public:
+    PaymentGatewayProxy(PaymentGateway* gateway, int retries,
+                        IRetryStrategy* strategy)
+        : realGateway(gateway), maxRetries(retries), retryStrategy(strategy) {}
+
+    bool processPayment(const PaymentRequest& req) override {
+        auto op = [this, &req]() {
+            return realGateway->processPayment(req);
+        };
+        bool ok = retryStrategy->executeWithRetry(
+            op, maxRetries, "Payment for " + req.getSender());
+        if (!ok) {
+            throw runtime_error("Payment failed after retries for "
+                                + req.getSender());
+        }
+        return true;
+    }
+
+    bool processRecurringPayment(const PaymentRequest& req,
+                                 int months) override {
+        auto op = [this, &req, months]() {
+            return realGateway->processRecurringPayment(req, months);
+        };
+        // Fewer retries for recurring — mandate is risky
+        bool ok = retryStrategy->executeWithRetry(
+            op, maxRetries, "Recurring for " + req.getSender());
+        if (!ok) {
+            throw runtime_error("Recurring payment failed after retries");
+        }
+        return true;
+    }
+
+    bool validatePayment(const PaymentRequest& r) override {
+        return realGateway->validatePayment(r);
+    }
+    bool initiatePayment(const PaymentRequest& r) override {
+        return realGateway->initiatePayment(r);
+    }
+    bool confirmPayment(const PaymentRequest& r) override {
+        return realGateway->confirmPayment(r);
+    }
+
+    ~PaymentGatewayProxy() {
+        delete realGateway;
+        delete retryStrategy;
+    }
+};
+
+// ============================================================
+// FACTORY (Singleton)
+// ============================================================
+enum class GatewayType { PAYTM, RAZORPAY };
+enum class RetryType { LINEAR, EXPONENTIAL };
+
+class GatewayFactory {
+private:
+    static GatewayFactory* instance;
+    static mutex mtx;
+    GatewayFactory() {}
+public:
+    static GatewayFactory* getInstance() {
+        lock_guard<mutex> lock(mtx);
+        if (!instance) instance = new GatewayFactory();
+        return instance;
+    }
+
+    PaymentGateway* getGateway(GatewayType gType, RetryType rType,
+                               int maxRetries) {
+        IRetryStrategy* strategy = nullptr;
+        if (rType == RetryType::LINEAR) {
+            strategy = new LinearRetryStrategy(50);
+        } else {
+            strategy = new ExponentialRetryStrategy(100);
+        }
+
+        PaymentGateway* real = (gType == GatewayType::PAYTM)
+            ? static_cast<PaymentGateway*>(new PaytmGateway())
+            : static_cast<PaymentGateway*>(new RazorpayGateway());
+
+        return new PaymentGatewayProxy(real, maxRetries, strategy);
+    }
+};
+GatewayFactory* GatewayFactory::instance = nullptr;
+mutex GatewayFactory::mtx;
+
+// ============================================================
+// SERVICE + CONTROLLER
+// ============================================================
+class PaymentService {
+private:
+    static PaymentService* instance;
+    static mutex mtx;
+    PaymentGateway* gateway;
+    PaymentService() : gateway(nullptr) {}
+public:
+    static PaymentService* getInstance() {
+        lock_guard<mutex> lock(mtx);
+        if (!instance) instance = new PaymentService();
+        return instance;
+    }
+    void setGateway(PaymentGateway* g) {
+        if (gateway) delete gateway;
+        gateway = g;
+    }
+    bool processPayment(const PaymentRequest& r) {
+        return gateway->processPayment(r);
+    }
+    bool processRecurring(const PaymentRequest& r, int months) {
+        return gateway->processRecurringPayment(r, months);
+    }
+};
+PaymentService* PaymentService::instance = nullptr;
+mutex PaymentService::mtx;
+
+class PaymentController {
+private:
+    static PaymentController* instance;
+    static mutex mtx;
+    PaymentService* service;
+    PaymentController() : service(PaymentService::getInstance()) {}
+public:
+    static PaymentController* getInstance() {
+        lock_guard<mutex> lock(mtx);
+        if (!instance) instance = new PaymentController();
+        return instance;
+    }
+    bool handlePayment(GatewayType gt, RetryType rt, int retries,
+                       const PaymentRequest& r) {
+        auto* pg = GatewayFactory::getInstance()->getGateway(gt, rt, retries);
+        service->setGateway(pg);
+        return service->processPayment(r);
+    }
+    bool handleRecurring(GatewayType gt, RetryType rt, int retries,
+                         const PaymentRequest& r, int months) {
+        auto* pg = GatewayFactory::getInstance()->getGateway(gt, rt, retries);
+        service->setGateway(pg);
+        return service->processRecurring(r, months);
+    }
+};
+PaymentController* PaymentController::instance = nullptr;
+mutex PaymentController::mtx;
+
+// ============================================================
+// CLIENT
+// ============================================================
+int main() {
+    PaymentRequest req("Aditya", "Netflix", 199, "INR");
+
+    cout << "========== ONE-TIME PAYMENT (Linear Retry) ==========\n";
+    try {
+        bool ok = PaymentController::getInstance()->handlePayment(
+            GatewayType::PAYTM, RetryType::LINEAR, 3, req);
+        cout << "Result: " << (ok ? "SUCCESS" : "FAIL") << "\n";
+    } catch (exception& e) {
+        cout << "Result: FAILED — " << e.what() << "\n";
+    }
+
+    cout << "\n========== RECURRING PAYMENT (Exponential Retry) ==========\n";
+    PaymentRequest sub("Aditya", "YouTube", 129, "INR");
+    try {
+        bool ok = PaymentController::getInstance()->handleRecurring(
+            GatewayType::RAZORPAY, RetryType::EXPONENTIAL, 2, sub, 3);
+        cout << "Result: " << (ok ? "SUCCESS" : "FAIL") << "\n";
+    } catch (exception& e) {
+        cout << "Result: FAILED — " << e.what() << "\n";
+    }
+    return 0;
+}
+```
+
+### 6.4 How the Homework Solution Works
+
+**Retry Strategy**
+- `LinearRetryStrategy` — fixed delay (e.g., 50ms) between attempts; matches the original behavior but now pluggable.
+- `ExponentialRetryStrategy` — backoff `base × 2^(attempt-1)` → 100ms, 200ms, 400ms…
+- Both implement `IRetryStrategy`, so the proxy doesn't care which one it gets.
+- Adding a "jitter" or "fixed" retry later = just a new class; no modification to proxy/factory.
+
+**Recurring Payment**
+- `processRecurringPayment()` is a **new template method** on `PaymentGateway` that reuses the existing one-time flow (`processPayment`) internally.
+- Order enforced: `validateRecurringSetup` → loop of `processPayment` per month → `confirmRecurring`.
+- Subclasses can override `validateRecurringSetup` (Paytm registers a UPI mandate; Razorpay creates a subscription plan).
+- Proxy exposes a `processRecurringPayment` that applies the same pluggable retry strategy — no duplicated retry code.
+
+### 6.5 UML of Homework Extension
+
+```
+                    ┌────────────────────────────┐
+                    │  IRetryStrategy            │
+                    ├────────────────────────────┤
+                    │ + executeWithRetry(...)    │
+                    └────────────┬───────────────┘
+                                 △
+                ┌────────────────┼────────────────┐
+                ▼                ▼                ▼
+        LinearRetry      ExponentialRetry    (future:
+        Strategy         Strategy            JitteredRetry)
+
+                    ┌────────────────────────────────┐
+                    │  <<abstract>>                  │
+                    │  PaymentGateway                │
+                    ├────────────────────────────────┤
+                    │ + processPayment(req)          │  ← template 1
+                    │ + processRecurringPayment(req, │  ← template 2
+                    │     months)                    │
+                    │ # validatePayment()            │
+                    │ # initiatePayment()            │
+                    │ # confirmPayment()             │
+                    │ # validateRecurringSetup()     │
+                    │ # confirmRecurring()           │
+                    └────────────┬───────────────────┘
+                                 △
+              ┌──────────────────┼──────────────────┐
+              ▼                  ▼                  ▼
+          PaytmGateway      RazorpayGateway   PaymentGatewayProxy
+                                                  │
+                                                  │ has-a
+                                                  ▼
+                                            PaymentGateway + IRetryStrategy
+```
+
+---
+
+## 7. Key Takeaways
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    PAYMENT GATEWAY — SUMMARY                        │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   🎯 LAYERED ARCHITECTURE                                          │
+│   Client → Controller → Service → Gateway (Proxy) → Gateway →      │
+│           Banking System                                            │
+│                                                                      │
+│   🧩 DESIGN PATTERNS                                               │
+│   • Template Method → fixed validate/initiate/confirm order        │
+│   • Proxy           → retry & protection layer                      │
+│   • Factory         → create gateway + wrap in proxy                │
+│   • Singleton       → Factory, Service, Controller                  │
+│   • Strategy        → retry policies (homework extension)           │
+│                                                                      │
+│   ✅ SINGLE ENTRY POINT                                             │
+│   The client (any app like Amazon) only knows `PaymentController`.  │
+│   Everything else is hidden.                                        │
+│                                                                      │
+│   ✅ EXTENSIBILITY                                                  │
+│   • New provider → new Gateway class + factory entry                │
+│   • New retry policy → new RetryStrategy class                      │
+│   • New payment type → new template method on PaymentGateway        │
+│                                                                      │
+│   ⚠️ SIMPLIFYING ASSUMPTIONS                                       │
+│   The "banking system" classes are simulated locally. In reality    │
+│   the gateway makes HTTPS calls to the vendor's servers.            │
+│                                                                      │
+│   🎓 GOLDEN LESSON                                                  │
+│   "Real LLD problems combine 3-5 patterns naturally. Don't force    │
+│    patterns; identify the problem each one solves."                 │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+The homework demonstrates that the design is **genuinely extensible**: adding an exponential-backoff retry and a recurring-payment flow required **zero changes** to existing client code, controller, service, or factory — only new strategy classes and a new template method. This is exactly what SOLID's Open/Closed Principle promises.
+
+---
+
+## 24. Build Discount Coupon Engine (1:23:18)
 
 summaries system design tutorial transcript in details along with useful code examples and diagrams
