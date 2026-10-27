@@ -14809,8 +14809,6 @@ int main() {
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-The homework demonstrates that the design is **genuinely extensible**: adding an exponential-backoff retry and a recurring-payment flow required **zero changes** to existing client code, controller, service, or factory — only new strategy classes and a new template method. This is exactly what SOLID's Open/Closed Principle promises.
-
 ---
 
 ## 24. Build Discount Coupon Engine (1:23:18)
