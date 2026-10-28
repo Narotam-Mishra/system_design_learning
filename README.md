@@ -15602,4 +15602,541 @@ This design demonstrates that **real-world LLD problems rarely use just one patt
 
 ## 25. Bridge Pattern | Real-world use case + Code (31:21)
 
+This lecture covers the **Bridge Design Pattern** — a structural pattern that **decouples an abstraction from its implementation so both can vary independently**. The classic example is **Car Types (Sedan/SUV) × Engines (Petrol/Diesel/Electric)**.
+
+---
+
+## 1. The Problem: Class Explosion
+
+### Scenario
+
+We need to build cars. Every car has:
+- **A type**: Sedan, Hatchback, SUV
+- **An engine**: Petrol, Diesel, Electric
+
+Any car type can pair with any engine type.
+
+### ❌ Naive Inheritance Approach
+
+```
+                     ┌──────────────┐
+                     │     Car      │
+                     └──────┬───────┘
+                            △
+    ┌───────────────────────┼───────────────────────┐
+    │                       │                       │
+┌───┴───────────┐   ┌───────┴────────┐   ┌──────────┴────┐
+│SedanPetrol    │   │SedanDiesel     │   │SedanElectric  │
+└───────────────┘   └────────────────┘   └───────────────┘
+
+┌───────────────┐   ┌────────────────┐   ┌───────────────┐
+│HatchbackPetrol│   │HatchbackDiesel │   │HatchbackElec. │
+└───────────────┘   └────────────────┘   └───────────────┘
+
+┌───────────────┐   ┌────────────────┐   ┌───────────────┐
+│SUVPetrol      │   │SUVDiesel       │   │SUVElectric    │
+└───────────────┘   └────────────────┘   └───────────────┘
+```
+
+**Formula:** With **m** car types and **n** engines → **m × n** classes
+
+| Car Types | Engines | Classes Needed |
+|-----------|---------|----------------|
+| 3 | 3 | **9** |
+| 3 | 4 (add CNG) | **12** |
+| 5 | 5 | **25** |
+| 10 | 10 | **100** |
+
+### Problems Caused
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    CLASS EXPLOSION CONSEQUENCES                     │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   ❌ Too many classes in one application                            │
+│   ❌ Hard to understand relationships                               │
+│   ❌ Low code reuse (duplicated logic)                              │
+│   ❌ DRY Principle violation                                        │
+│   ❌ OCP violation (every new engine = new set of classes)          │
+│   ❌ SRP violation (car + engine logic mixed)                       │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 2. The Bridge Solution
+
+### Core Idea
+
+> **"Bridge decouples an abstraction from its implementation so that both can vary independently."**
+
+Break the single concept into **two independent hierarchies**:
+- **High-level (Abstraction)** → What the thing *looks like* / *is*
+- **Low-level (Implementation)** → How the thing is *actually built*
+
+Then connect them via **HAS-A (composition)** — the "bridge".
+
+### Key Terminology Note
+
+⚠️ **Don't confuse with OOP abstraction!**
+
+| Term | In Bridge Pattern | In OOP |
+|------|-------------------|--------|
+| **Abstraction** | High-level part (e.g., Car type) — *can still be an abstract class* | Using abstract classes/interfaces |
+| **Implementation** | Low-level part (e.g., Engine) — *also abstract!* | Concrete class providing behavior |
+
+The lecture recommends using **"high-level"** and **"low-level"** to avoid confusion, but use **"abstraction"** and **"implementation"** to impress interviewers.
+
+---
+
+## 3. UML Design — Car Example
+
+### 3.1 High-Level Layer (Abstraction): Car Types
+
+```
+                    ┌──────────────────────────────┐
+                    │   <<abstract>>               │
+                    │       Car                    │
+                    ├──────────────────────────────┤
+                    │ # engine: Engine*            │  ← bridge reference
+                    ├──────────────────────────────┤
+                    │ + Car(Engine*)               │
+                    │ + drive(): void = 0          │
+                    └──────────────┬───────────────┘
+                                   △
+                    ┌──────────────┴───────────────┐
+                    │                              │
+                    ▼                              ▼
+       ┌────────────────────────┐    ┌─────────────────────────────┐
+       │        Sedan           │    │           SUV               │
+       ├────────────────────────┤    ├─────────────────────────────┤
+       │ + drive()              │    │ + drive()                   │
+       └────────────────────────┘    └─────────────────────────────┘
+```
+
+### 3.2 Low-Level Layer (Implementation): Engines
+
+```
+                    ┌──────────────────────────────┐
+                    │   <<abstract>>               │
+                    │       Engine                 │
+                    ├──────────────────────────────┤
+                    │ + start(): void = 0          │
+                    └──────────────┬───────────────┘
+                                   △
+              ┌────────────────────┼────────────────────┐
+              ▼                    ▼                    ▼
+   ┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐
+   │  PetrolEngine   │   │  DieselEngine   │   │ ElectricEngine  │
+   ├─────────────────┤   ├─────────────────┤   ├─────────────────┤
+   │ + start()       │   │ + start()       │   │ + start()       │
+   └─────────────────┘   └─────────────────┘   └─────────────────┘
+```
+
+### 3.3 The Bridge — Combined View
+
+```
+                    ┌──────────────────────────────┐
+                    │       <<abstract>>           │
+                    │          Car                 │  ← HIGH LEVEL
+                    ├──────────────────────────────┤
+                    │ - engine: Engine*            │
+                    ├──────────────────────────────┤
+                    │ + drive(): void = 0          │
+                    └──────────────┬───────────────┘
+                                   △
+                    ┌──────────────┴───────────────┐
+                    ▼                              ▼
+             ┌──────────┐                   ┌──────────┐
+             │  Sedan   │                   │   SUV    │
+             └────┬─────┘                   └────┬─────┘
+                  │                              │
+                  │  HAS-A (bridge)              │
+                  ▼                              ▼
+                    ┌──────────────────────────────┐
+                    │       <<abstract>>           │
+                    │         Engine               │  ← LOW LEVEL
+                    ├──────────────────────────────┤
+                    │ + start(): void = 0          │
+                    └──────────────┬───────────────┘
+                                   △
+              ┌────────────────────┼────────────────────┐
+              ▼                    ▼                    ▼
+      ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+      │PetrolEngine  │    │DieselEngine  │    │ElectricEngine│
+      └──────────────┘    └──────────────┘    └──────────────┘
+```
+
+**Class count: m + n instead of m × n**
+
+| Cars | Engines | Before (m×n) | After (m+n) |
+|------|---------|--------------|-------------|
+| 3 | 3 | 9 | **6** |
+| 3 | 4 | 12 | **7** |
+| 5 | 5 | 25 | **10** |
+| 10 | 10 | 100 | **20** |
+
+---
+
+## 4. Code Implementation (C++)
+
+### 4.1 Low-Level Layer: Engine Hierarchy
+
+```cpp
+#include <iostream>
+#include <string>
+using namespace std;
+
+// ============ ABSTRACT IMPLEMENTATION ============
+class Engine {
+public:
+    virtual void start() = 0;
+    virtual ~Engine() {}
+};
+
+// ============ CONCRETE IMPLEMENTATIONS ============
+class PetrolEngine : public Engine {
+public:
+    void start() override {
+        cout << "Petrol Engine: Starting with ignition\n";
+    }
+};
+
+class DieselEngine : public Engine {
+public:
+    void start() override {
+        cout << "Diesel Engine: Starting with compression ignition\n";
+    }
+};
+
+class ElectricEngine : public Engine {
+public:
+    void start() override {
+        cout << "Electric Engine: Powering up silently\n";
+    }
+};
+```
+
+### 4.2 High-Level Layer: Car Hierarchy
+
+```cpp
+// ============ ABSTRACTION ============
+class Car {
+protected:
+    Engine* engine;   // ← The bridge!
+public:
+    Car(Engine* e) : engine(e) {}
+    virtual void drive() = 0;
+    virtual ~Car() {}
+};
+
+// ============ REFINED ABSTRACTIONS ============
+class Sedan : public Car {
+public:
+    Sedan(Engine* e) : Car(e) {}
+    void drive() override {
+        engine->start();
+        cout << "Driving a Sedan on the highway\n";
+    }
+};
+
+class SUV : public Car {
+public:
+    SUV(Engine* e) : Car(e) {}
+    void drive() override {
+        engine->start();
+        cout << "Driving an SUV off-road\n";
+    }
+};
+```
+
+### 4.3 Client (Main)
+
+```cpp
+int main() {
+    // Create engines (low-level parts)
+    Engine* petrol = new PetrolEngine();
+    Engine* diesel = new DieselEngine();
+    Engine* electric = new ElectricEngine();
+
+    // Create cars (high-level parts) with any engine
+    Car* sedan1 = new Sedan(petrol);      // Sedan + Petrol
+    Car* suv1   = new SUV(electric);      // SUV + Electric
+    Car* suv2   = new SUV(diesel);        // SUV + Diesel
+
+    // Drive them
+    sedan1->drive();
+    cout << "---\n";
+    suv1->drive();
+    cout << "---\n";
+    suv2->drive();
+
+    // Cleanup
+    delete sedan1; delete suv1; delete suv2;
+    delete petrol; delete diesel; delete electric;
+    return 0;
+}
+```
+
+### 4.4 Output
+
+```
+Petrol Engine: Starting with ignition
+Driving a Sedan on the highway
+---
+Electric Engine: Powering up silently
+Driving an SUV off-road
+---
+Diesel Engine: Starting with compression ignition
+Driving an SUV off-road
+```
+
+Notice how **Sedan** doesn't know (or care) which engine it has — it just calls `engine->start()`. This is the power of the bridge.
+
+---
+
+## 5. Standard UML (Generic Bridge)
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                       STANDARD BRIDGE UML                        │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│   HIGH-LEVEL LAYER                    LOW-LEVEL LAYER            │
+│   (Abstraction)                       (Implementation)           │
+│                                                                   │
+│   ┌─────────────────────────┐   ┌─────────────────────────┐      │
+│   │  <<abstract>>           │   │  <<interface>>          │      │
+│   │  Abstraction            │   │  Implementor            │      │
+│   ├─────────────────────────┤   ├─────────────────────────┤      │
+│   │ - impl: Implementor*    │   │ + implement(): void = 0 │      │
+│   ├─────────────────────────┤   └───────────┬─────────────┘      │
+│   │ + execute()             │               △                    │
+│   │   { impl->implement(); }│               │                    │
+│   └───────────┬─────────────┘    ┌──────────┼──────────┐         │
+│               △                  │          │          │         │
+│      ┌────────┼────────┐         ▼          ▼          ▼         │
+│      │        │        │   ConcreteImpl1 Impl2  Impl3             │
+│      ▼        ▼        ▼                                         │
+│ ConcreteAbs1 Abs2  Abs3                                          │
+│                                                                   │
+│   Abstraction HAS-A Implementor  ← This is the BRIDGE            │
+│                                                                   │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**Key rules:**
+1. `Abstraction` holds a pointer to `Implementor`
+2. `Abstraction.execute()` delegates to `Implementor.implement()`
+3. Both hierarchies are abstract (can have their own subclasses)
+4. Neither hierarchy knows the concrete class of the other
+
+---
+
+## 6. Standard Definition
+
+> **"The Bridge pattern decouples an abstraction from its implementation so that both can vary independently."**
+
+- **Abstraction** = high-level concept (Car type)
+- **Implementation** = low-level mechanism (Engine)
+- They vary independently because they're in **separate inheritance hierarchies**
+- Connected only by a **composition reference** (the bridge)
+
+---
+
+## 7. Bridge vs Strategy — The Subtle Difference
+
+Both look almost identical in UML. The difference is **intent**.
+
+### Both Umls Look the Same
+
+```
+        STRATEGY                            BRIDGE
+
+   ┌────────────┐                    ┌────────────────┐
+   │  Context   │                    │  Abstraction   │
+   │ (Client)   │                    ├────────────────┤
+   ├────────────┤                    │ - impl         │
+   │ - strategy │                    └───────┬────────┘
+   └─────┬──────┘                            │
+         │ has-a                             │ has-a (bridge)
+         ▼                                   ▼
+   ┌────────────┐                    ┌────────────────┐
+   │ <<iface>>  │                    │ <<abstract>>   │
+   │  Strategy  │                    │  Implementor   │
+   ├────────────┤                    ├────────────────┤
+   │ + execute()│                    │ + implement()  │
+   └─────┬──────┘                    └───────┬────────┘
+         △                                   △
+    ┌────┼────┐                        ┌─────┼─────┐
+    ▼    ▼    ▼                        ▼     ▼     ▼
+   A    B    C                        X     Y     Z
+```
+
+### The Actual Difference
+
+| Aspect | Strategy | Bridge |
+|--------|----------|--------|
+| **Intent** | Interchange algorithms *at runtime* | Decouple two hierarchies that *evolve independently* |
+| **Who varies?** | Only the algorithm | **Both** the abstraction AND the implementation |
+| **Runtime swap?** | Yes — swap strategy anytime | Rarely — the pairing is usually fixed once made |
+| **High-level class** | Usually a *concrete* client/context | Usually an *abstract* class with its own subclasses |
+| **Example** | Robot: swap FlyBehavior() | Car: SUV + Petrol engine (fixed pairing) |
+
+### Mental Model
+
+```
+STRATEGY
+────────
+  Client  ──has-a──▶  Strategy
+  (one class)         (many algorithms)
+  
+  "I want to swap the algorithm"
+  
+BRIDGE
+──────
+  Abstraction ──has-a──▶ Implementor
+  (many variants)        (many variants)
+  
+  "Both sides will grow independently, and I pair them"
+```
+
+### In the Car Example
+
+- A **Sedan + Petrol** is built and stays that way (like buying a real car)
+- You don't "swap the engine on the fly" — Bridge is about **independent evolution**, not runtime swapping
+- Strategy would be: "my robot can change from flying to walking at runtime"
+
+---
+
+## 8. Real-World Use Cases
+
+### Use Case 1: TV Remote Control
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    TV + REMOTE                              │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│   HIGH-LEVEL (Remote)          LOW-LEVEL (TV)               │
+│                                                              │
+│   ┌────────────────┐           ┌────────────────┐           │
+│   │ <<abstract>>   │           │ <<interface>>  │           │
+│   │   Remote       │           │     TV         │           │
+│   ├────────────────┤           ├────────────────┤           │
+│   │ - tv: TV*      │──────────▶│ + on()         │           │
+│   ├────────────────┤           │ + off()        │           │
+│   │ + pressPower() │           │ + setVolume()  │           │
+│   └───────┬────────┘           └───────┬────────┘           │
+│           △                            △                    │
+│      ┌────┴────┐              ┌────────┼────────┐           │
+│      ▼         ▼              ▼        ▼        ▼           │
+│  BasicRemote TouchRemote   LCD-TV   LED-TV  OLED-TV         │
+│                                                              │
+│   Any remote can control any TV — independently extendable  │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Use Case 2: GUI Widgets Across OS
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    GUI × OPERATING SYSTEM                   │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│   HIGH-LEVEL (UI Controls)     LOW-LEVEL (OS Renderers)     │
+│                                                              │
+│   ┌────────────────┐           ┌────────────────┐           │
+│   │ <<abstract>>   │           │ <<interface>>  │           │
+│   │   UIWidget     │           │  Renderer      │           │
+│   ├────────────────┤           ├────────────────┤           │
+│   │ - renderer     │──────────▶│ + draw()       │           │
+│   └───────┬────────┘           └───────┬────────┘           │
+│           △                            △                    │
+│      ┌────┼────────┐         ┌─────────┼─────────┐         │
+│      ▼    ▼        ▼         ▼         ▼         ▼         │
+│   TextBox Dropdown Radio  Windows   macOS    Linux        │
+│                                                              │
+│   Any widget renders with any OS-native style               │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Other Real-World Uses
+
+| Domain | High-Level | Low-Level |
+|--------|-----------|-----------|
+| **Cross-platform apps** | Electron/Flutter Widgets | OS-specific renderers |
+| **Database drivers** | ORM API | SQLite/MySQL/Postgres backends |
+| **Report generation** | ReportType (PDF/HTML/CSV) | DataSource (DB/File/API) |
+| **Cloud storage** | FileManager | S3/GCS/Azure backends |
+
+---
+
+## 9. Key Takeaways
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    BRIDGE PATTERN — SUMMARY                         │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   🎯 PURPOSE                                                        │
+│   Decouple abstraction (high-level) from implementation             │
+│   (low-level) so both can evolve independently.                     │
+│                                                                      │
+│   🧩 KEY COMPONENTS                                                 │
+│   • Abstraction – high-level interface/abstract class               │
+│   • Refined Abstraction – concrete high-level variants              │
+│   • Implementor – low-level interface/abstract class                │
+│   • Concrete Implementor – concrete low-level variants              │
+│   • The bridge = HAS-A reference from Abstraction → Implementor     │
+│                                                                      │
+│   ✅ BENEFITS                                                       │
+│   • Prevents class explosion (m×n → m+n)                            │
+│   • Both hierarchies can grow independently                         │
+│   • Better SRP: each hierarchy has one axis of variation            │
+│   • Better OCP: add new types or engines without touching the other │
+│   • Runtime composition of any pair                                 │
+│                                                                      │
+│   ⚠️ TRADE-OFFS                                                     │
+│   • More classes than a single (non-explosive) design               │
+│   • Slightly higher complexity in wiring                            │
+│   • Not needed if only one axis changes                             │
+│                                                                      │
+│   🌍 REAL-WORLD USES                                                │
+│   • Cross-platform UI (widgets × OS)                                │
+│   • TV × Remote control                                             │
+│   • Database drivers (ORM × DB engine)                              │
+│   • Cloud storage (interface × provider)                            │
+│   • Report generation (format × data source)                        │
+│                                                                      │
+│   💡 GOLDEN RULE                                                    │
+│   "When you have two independent dimensions of variation            │
+│    that would otherwise create m × n combinations, use Bridge."     │
+│                                                                      │
+│   🔍 vs STRATEGY                                                    │
+│   • Strategy: swap algorithm at runtime (one side varies)           │
+│   • Bridge: two hierarchies evolve independently (both vary)        │
+│   • Same UML, different intent                                      │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Interview Wisdom
+
+The Bridge pattern is frequently confused with Strategy because their UML is nearly identical. The right way to distinguish them:
+
+1. **Look at the intent** (what problem does the design solve?)
+2. **Ask**: "Will BOTH sides grow independently over time?" → Bridge
+3. **Ask**: "Do we need to swap the behavior at runtime?" → Strategy
+
+When in doubt, propose both to the interviewer and discuss the trade-off — this demonstrates depth of understanding and impresses interviewers.
+
+---
+
+## 26. Build Zepto | 10-Mins Quick Commerce | Inventory Management (1:36:12)
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
