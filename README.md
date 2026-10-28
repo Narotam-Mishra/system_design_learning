@@ -14813,4 +14813,793 @@ int main() {
 
 ## 24. Build Discount Coupon Engine (1:23:18)
 
+This designing a **Discount Coupon Application** (like Zomato/Swiggy/Zepto/Amazon). It combines multiple design patterns: **Strategy, Chain of Responsibility, Template Method, Factory, Singleton**, and demonstrates composition relationships.
+
+---
+
+## 1. Requirements Analysis
+
+### Functional Requirements
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    DISCOUNT COUPON ENGINE — REQUIREMENTS            │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   ✅ Add new coupons at runtime (scalable)                         │
+│      • Seasonal offers, Loyalty discounts, Banking discounts        │
+│                                                                      │
+│   ✅ Support BOTH cart-level and product-level discounts           │
+│      • Cart-level: applies to entire order total                    │
+│      • Product-level: applies to specific category (e.g., 5% on     │
+│        electronics)                                                 │
+│                                                                      │
+│   ✅ Multiple coupon types + extensible                            │
+│      • Seasonal, Loyalty, Banking, Bulk purchase                    │
+│                                                                      │
+│   ✅ Multiple discount strategies                                  │
+│      • Flat discount                                                │
+│      • Percentage discount                                          │
+│      • Percentage with cap (e.g., 60% off up to ₹120)              │
+│                                                                      │
+│   ✅ Coupons can or cannot be combined with other coupons          │
+│      • Some coupons can stack; some cannot                          │
+│                                                                      │
+│   ✅ Thread-safe                                                   │
+│      • Limit coupon usage (e.g., only 4 coupons available)          │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Non-Functional Requirements
+- **Plug-and-play** model (integrate into any app)
+- **Scalable**
+- Follow SOLID principles
+
+---
+
+## 2. Happy Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    HAPPY FLOW                                       │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   User sees products (on Zepto/Swiggy/etc.)                        │
+│      │                                                              │
+│      ▼                                                              │
+│   Adds products to Cart                                             │
+│      │                                                              │
+│      ▼                                                              │
+│   Applies one or more coupons (multiple combinable or single)       │
+│      │                                                              │
+│      ▼                                                              │
+│   Final total calculated after all applicable discounts             │
+│      │                                                              │
+│      ▼                                                              │
+│   User pays the final discounted total                              │
+│                                                                      │
+│   Note: This is a PLUG-AND-PLAY system — Cart/Product are generic, │
+│   will be replaced by FoodItem/Restaurant in a Zomato integration.  │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 3. Design Patterns Used
+
+| Pattern | Where Used | Why |
+|---------|-----------|-----|
+| **Strategy** | `DiscountStrategy` hierarchy | Pluggable discount algorithms (flat, percentage, percentage+capped) |
+| **Chain of Responsibility** | `Coupon` chain | Coupons linked; each applies or forwards to next; also allows "cannot combine" |
+| **Template Method** | `Coupon.applyDiscount()` | Enforces order: isApplicable → getDiscount → apply → check next |
+| **Factory** | `StrategyManager.getStrategy()` | Hides object creation for strategies |
+| **Singleton** | `StrategyManager`, `CouponManager` | Single source of truth |
+| **Composition** | Cart→CartItem, CartItem→Product, CouponManager→Coupon | Ownership and lifecycle |
+
+> **Insight:** The lecture notes that **Decorator Pattern** could also be used for coupon chaining, but Chain of Responsibility was chosen. This is a subjective design decision — mention the trade-off to the interviewer.
+
+---
+
+## 4. Complete UML Design
+
+### 4.1 Cart / Product / CartItem Hierarchy
+
+```
+       ┌──────────────────────────┐
+       │        Product           │  <<model>>
+       ├──────────────────────────┤
+       │ - name: string           │
+       │ - category: string       │
+       │ - price: double          │
+       ├──────────────────────────┤
+       │ + getters/setters        │
+       └────────────┬─────────────┘
+                    △ (aggregation — product exists independently)
+                    │
+       ┌────────────┴─────────────┐
+       │       CartItem           │
+       ├──────────────────────────┤
+       │ - product: Product*      │
+       │ - quantity: int          │
+       ├──────────────────────────┤
+       │ + itemTotal(): double    │   ← product.price * quantity
+       │ + getProduct(): Product* │
+       └────────────┬─────────────┘
+                    △ (composition — CartItem only exists inside Cart)
+                    │ (1..*)
+       ┌────────────┴─────────────┐
+       │          Cart            │
+       ├──────────────────────────┤
+       │ - items: List<CartItem>  │
+       │ - isLoyaltyMember: bool  │
+       │ - paymentBank: string    │
+       │ - originalTotal: double  │
+       │ - currentTotal: double   │
+       ├──────────────────────────┤
+       │ + addProduct(product,    │
+       │     quantity=1)          │
+       │ + applyDiscount(amount)  │
+       │ + getOriginalTotal()     │
+       │ + getCurrentTotal()      │
+       └──────────────────────────┘
+```
+
+**Relationship rationale:**
+- **Cart ◇◆ CartItem** — *Composition*: CartItem cannot exist without a Cart
+- **CartItem ◇── Product** — *Aggregation*: Product exists independently of CartItem
+
+### 4.2 Discount Strategies (Strategy Pattern)
+
+```
+                  ┌──────────────────────────────┐
+                  │      <<abstract>>            │
+                  │      DiscountStrategy        │
+                  ├──────────────────────────────┤
+                  │ + calculate(amount): double  │
+                  └──────────────┬───────────────┘
+                                 △
+              ┌──────────────────┼───────────────────┐
+              ▼                  ▼                   ▼
+   ┌──────────────────┐ ┌───────────────────┐ ┌──────────────────────────┐
+   │ FlatDiscount     │ │ PercentageDiscount│ │ PercentageWithCapDiscount│
+   ├──────────────────┤ ├───────────────────┤ ├──────────────────────────┤
+   │ - amount: double │ │ - percent: double │ │ - percent: double        │
+   ├──────────────────┤ ├───────────────────┤ │ - cap: double            │
+   │ + calculate()    │ │ + calculate()     │ ├──────────────────────────┤
+   │   returns min     │ │   returns         │ │ + calculate()            │
+   │   (amount,        │ │   percent/100 ×   │ │   returns min(cap,       │
+   │    flatDisc)      │ │   amount          │ │   percent/100 × amount)  │
+   └──────────────────┘ └───────────────────┘ └──────────────────────────┘
+```
+
+### 4.3 Strategy Manager (Singleton + Factory)
+
+```
+                ┌──────────────────────────────────┐
+                │   StrategyManager <<singleton>>  │
+                ├──────────────────────────────────┤
+                │ - instance: StrategyManager*     │
+                ├──────────────────────────────────┤
+                │ + getInstance()                  │
+                │ + getStrategy(type, p1, p2=0)    │
+                └──────────────────────────────────┘
+                              │ creates
+                              ▼
+                        DiscountStrategy
+
+   enum StrategyType { FLAT, PERCENTAGE, PERCENTAGE_WITH_CAP }
+```
+
+### 4.4 Coupon Hierarchy (Chain of Responsibility + Template Method)
+
+```
+                ┌──────────────────────────────────────┐
+                │        <<abstract>>                  │
+                │          Coupon                      │
+                ├──────────────────────────────────────┤
+                │ - next: Coupon*                      │
+                ├──────────────────────────────────────┤
+                │ + setNext(Coupon*)                   │
+                │ + getNext(): Coupon*                 │
+                │ + applyDiscount(cart)                │   ← Template Method
+                │ # isApplicable(cart): bool = 0       │
+                │ # isCombinable(cart): bool = 0       │
+                │ # getDiscount(cart): double = 0      │
+                │ # getName(): string = 0              │
+                └──────────────────┬───────────────────┘
+                                   △
+        ┌──────────────────┬───────┴────────┬─────────────────────┐
+        ▼                  ▼                ▼                     ▼
+┌───────────────┐ ┌────────────────┐ ┌────────────────┐ ┌────────────────┐
+│ SeasonalOffer │ │LoyaltyDiscount │ │ BulkPurchase   │ │ BankingCoupon  │
+│ - percent     │ │ - percent      │ │ - threshold    │ │ - bankName     │
+│ - category    │ │ - strategy     │ │ - flatOff      │ │ - minSpend     │
+│ - strategy    │ │                │ │ - strategy     │ │ - percent      │
+│               │ │                │ │                │ │ - cap          │
+│               │ │                │ │                │ │ - strategy     │
+└───────────────┘ └────────────────┘ └────────────────┘ └────────────────┘
+        │                │                  │                  │
+        └────────────────┴──────────────────┴──────────────────┘
+                                   │ has-a
+                                   ▼
+                          DiscountStrategy
+```
+
+### 4.5 Coupon Manager (Singleton)
+
+```
+                ┌──────────────────────────────────────┐
+                │   CouponManager <<singleton>>        │
+                ├──────────────────────────────────────┤
+                │ - instance: CouponManager*           │
+                │ - head: Coupon*                      │
+                │ - mtx: mutex                         │
+                ├──────────────────────────────────────┤
+                │ + getInstance()                      │
+                │ + registerCoupon(Coupon*)            │  ← Thread-safe
+                │ + getApplicableCoupons(Cart*):       │
+                │     List<string>                     │
+                │ + applyAll(Cart*): double            │  ← Thread-safe
+                └──────────────────┬───────────────────┘
+                                   │ ◆ composition (1..*)
+                                   ▼
+                                Coupon
+```
+
+### 4.6 Complete Architecture Overview
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                        COUPON DISCOUNT ENGINE                                │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                               │
+│   Client (main)                                                              │
+│      │                                                                       │
+│      │  1. Build products, add to cart                                       │
+│      │  2. Get CouponManager::getInstance()                                  │
+│      │  3. registerCoupon(...) for each coupon                               │
+│      │  4. getApplicableCoupons(cart)                                        │
+│      │  5. applyAll(cart) → returns final total                              │
+│      │                                                                       │
+│      ▼                                                                       │
+│   ┌────────────────────┐  ◆ (1..*)  ┌───────────────────┐                   │
+│   │  CouponManager     │────────────▶│      Coupon       │ ──▶ next ──▶ ...  │
+│   │  <<singleton>>     │             │ (linked chain)    │                   │
+│   └────────────────────┘             └────────┬──────────┘                   │
+│                                               │ ◆ (has-a)                    │
+│                                               ▼                              │
+│                                      DiscountStrategy                        │
+│                                               ▲                              │
+│                                    created by │                              │
+│                                               │                              │
+│                                      ┌────────┴──────────┐                   │
+│                                      │ StrategyManager   │                   │
+│                                      │ <<singleton>>     │                   │
+│                                      └───────────────────┘                   │
+│                                                                               │
+│   Cart ──◆──▶ CartItem ──◇──▶ Product                                        │
+│                                                                               │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 5. Code Implementation (C++)
+
+### 5.1 Model Classes: Product, CartItem, Cart
+
+```cpp
+#include <iostream>
+#include <vector>
+#include <string>
+#include <memory>
+#include <mutex>
+#include <algorithm>
+using namespace std;
+
+// ============ PRODUCT ============
+class Product {
+    string name;
+    string category;
+    double price;
+public:
+    Product(string n, string c, double p) : name(n), category(c), price(p) {}
+    string getName() const { return name; }
+    string getCategory() const { return category; }
+    double getPrice() const { return price; }
+};
+
+// ============ CART ITEM (Composition with Cart, Aggregation with Product) ============
+class CartItem {
+    Product* product;
+    int quantity;
+public:
+    CartItem(Product* p, int q) : product(p), quantity(q) {}
+    double itemTotal() const { return product->getPrice() * quantity; }
+    Product* getProduct() const { return product; }
+};
+
+// ============ CART ============
+class Cart {
+    vector<CartItem> items;
+    bool loyaltyMember;
+    string paymentBank;
+    double originalTotal;
+    double currentTotal;
+public:
+    Cart() : loyaltyMember(false), originalTotal(0), currentTotal(0) {}
+
+    void addProduct(Product* p, int quantity = 1) {
+        CartItem item(p, quantity);
+        items.push_back(item);
+        originalTotal += item.itemTotal();
+        currentTotal += item.itemTotal();
+    }
+
+    void applyDiscount(double discount) {
+        currentTotal -= discount;
+        if (currentTotal < 0) currentTotal = 0;
+    }
+
+    vector<CartItem>& getItems() { return items; }
+    double getOriginalTotal() const { return originalTotal; }
+    double getCurrentTotal() const { return currentTotal; }
+    bool isLoyaltyMember() const { return loyaltyMember; }
+    void setLoyaltyMember(bool b) { loyaltyMember = b; }
+    string getPaymentBank() const { return paymentBank; }
+    void setPaymentBank(string b) { paymentBank = b; }
+};
+```
+
+### 5.2 Discount Strategies (Strategy Pattern)
+
+```cpp
+// ============ STRATEGY INTERFACE ============
+class DiscountStrategy {
+public:
+    virtual double calculate(double amount) = 0;
+    virtual ~DiscountStrategy() {}
+};
+
+// Flat discount
+class FlatDiscountStrategy : public DiscountStrategy {
+    double discountAmount;
+public:
+    FlatDiscountStrategy(double amt) : discountAmount(amt) {}
+    double calculate(double amount) override {
+        return min(amount, discountAmount);
+    }
+};
+
+// Percentage discount
+class PercentageDiscountStrategy : public DiscountStrategy {
+    double percent;
+public:
+    PercentageDiscountStrategy(double p) : percent(p) {}
+    double calculate(double amount) override {
+        return (percent / 100.0) * amount;
+    }
+};
+
+// Percentage with cap
+class PercentageWithCapStrategy : public DiscountStrategy {
+    double percent, cap;
+public:
+    PercentageWithCapStrategy(double p, double c) : percent(p), cap(c) {}
+    double calculate(double amount) override {
+        double disc = (percent / 100.0) * amount;
+        return min(disc, cap);
+    }
+};
+```
+
+### 5.3 Strategy Manager (Singleton + Factory)
+
+```cpp
+enum class StrategyType { FLAT, PERCENTAGE, PERCENTAGE_WITH_CAP };
+
+class StrategyManager {
+    static StrategyManager* instance;
+    static mutex mtx;
+    StrategyManager() {}
+public:
+    static StrategyManager* getInstance() {
+        lock_guard<mutex> lock(mtx);
+        if (!instance) instance = new StrategyManager();
+        return instance;
+    }
+    // param2 is optional (used only for PERCENTAGE_WITH_CAP)
+    DiscountStrategy* getStrategy(StrategyType type, double p1, double p2 = 0) {
+        if (type == StrategyType::FLAT)
+            return new FlatDiscountStrategy(p1);
+        if (type == StrategyType::PERCENTAGE)
+            return new PercentageDiscountStrategy(p1);
+        return new PercentageWithCapStrategy(p1, p2);
+    }
+};
+StrategyManager* StrategyManager::instance = nullptr;
+mutex StrategyManager::mtx;
+```
+
+### 5.4 Coupon Base Class (Template Method + Chain of Responsibility)
+
+```cpp
+class Coupon {
+protected:
+    Coupon* next = nullptr;
+public:
+    void setNext(Coupon* c) { next = c; }
+    Coupon* getNext() { return next; }
+
+    // Template Method — fixed order of execution
+    virtual void applyDiscount(Cart& cart) {
+        if (isApplicable(cart)) {
+            double discount = getDiscount(cart);
+            cart.applyDiscount(discount);
+            cout << "Applied " << getName() << ": ₹" << discount << "\n";
+        }
+        // Combine with next coupon if allowed
+        if (!isCombinable(cart)) return;
+        if (next != nullptr) {
+            next->applyDiscount(cart);
+        }
+    }
+
+    virtual bool isApplicable(Cart& cart) = 0;
+    virtual bool isCombinable(Cart& cart) = 0;
+    virtual double getDiscount(Cart& cart) = 0;
+    virtual string getName() = 0;
+    virtual ~Coupon() {}
+};
+```
+
+### 5.5 Concrete Coupons
+
+```cpp
+// ============ SEASONAL OFFER (product/category-level) ============
+class SeasonalOffer : public Coupon {
+    double percent;
+    string category;
+    DiscountStrategy* strategy;
+public:
+    SeasonalOffer(double p, string c) : percent(p), category(c) {
+        strategy = StrategyManager::getInstance()->getStrategy(
+            StrategyType::PERCENTAGE, p);
+    }
+    bool isApplicable(Cart& cart) override {
+        for (auto& item : cart.getItems()) {
+            if (item.getProduct()->getCategory() == category) return true;
+        }
+        return false;
+    }
+    bool isCombinable(Cart& cart) override { return true; }
+    double getDiscount(Cart& cart) override {
+        double subtotal = 0;
+        for (auto& item : cart.getItems()) {
+            if (item.getProduct()->getCategory() == category) {
+                subtotal += item.itemTotal();
+            }
+        }
+        return strategy->calculate(subtotal);
+    }
+    string getName() override {
+        return "Seasonal Offer (" + to_string((int)percent) + "% on "
+               + category + ")";
+    }
+};
+
+// ============ LOYALTY DISCOUNT (cart-level) ============
+class LoyaltyDiscount : public Coupon {
+    double percent;
+    DiscountStrategy* strategy;
+public:
+    LoyaltyDiscount(double p) : percent(p) {
+        strategy = StrategyManager::getInstance()->getStrategy(
+            StrategyType::PERCENTAGE, p);
+    }
+    bool isApplicable(Cart& cart) override {
+        return cart.isLoyaltyMember();
+    }
+    bool isCombinable(Cart& cart) override { return true; }
+    double getDiscount(Cart& cart) override {
+        return strategy->calculate(cart.getCurrentTotal());
+    }
+    string getName() override {
+        return "Loyalty Discount (" + to_string((int)percent) + "%)";
+    }
+};
+
+// ============ BULK PURCHASE (threshold-based, flat off) ============
+class BulkPurchase : public Coupon {
+    double threshold;
+    double flatOff;
+    DiscountStrategy* strategy;
+public:
+    BulkPurchase(double t, double off) : threshold(t), flatOff(off) {
+        strategy = StrategyManager::getInstance()->getStrategy(
+            StrategyType::FLAT, off);
+    }
+    bool isApplicable(Cart& cart) override {
+        return cart.getCurrentTotal() >= threshold;
+    }
+    bool isCombinable(Cart& cart) override { return true; }
+    double getDiscount(Cart& cart) override {
+        return strategy->calculate(cart.getCurrentTotal());
+    }
+    string getName() override {
+        return "Bulk Purchase (₹" + to_string((int)off_()) + " off)";
+    }
+    // helper to avoid string conversion issues
+    double off_() { return flatOff; }
+};
+
+// ============ BANKING COUPON (bank-specific, non-combinable) ============
+class BankingCoupon : public Coupon {
+    string bankName;
+    double minSpend;
+    double percent;
+    double cap;
+    DiscountStrategy* strategy;
+public:
+    BankingCoupon(string bank, double min, double p, double c)
+        : bankName(bank), minSpend(min), percent(p), cap(c) {
+        strategy = StrategyManager::getInstance()->getStrategy(
+            StrategyType::PERCENTAGE_WITH_CAP, p, c);
+    }
+    bool isApplicable(Cart& cart) override {
+        return cart.getPaymentBank() == bankName
+            && cart.getCurrentTotal() >= minSpend;
+    }
+    bool isCombinable(Cart& cart) override {
+        return false;   // ← explicitly non-combinable
+    }
+    double getDiscount(Cart& cart) override {
+        return strategy->calculate(cart.getCurrentTotal());
+    }
+    string getName() override {
+        return "Banking Coupon (" + bankName + ", "
+               + to_string((int)percent) + "% up to ₹"
+               + to_string((int)cap) + ")";
+    }
+};
+```
+
+### 5.6 Coupon Manager (Singleton, Thread-safe)
+
+```cpp
+class CouponManager {
+    static CouponManager* instance;
+    static mutex mtx;
+    Coupon* head = nullptr;
+    mutex m;
+
+    CouponManager() {}
+public:
+    static CouponManager* getInstance() {
+        lock_guard<mutex> lock(mtx);
+        if (!instance) instance = new CouponManager();
+        return instance;
+    }
+
+    // Thread-safe coupon registration
+    void registerCoupon(Coupon* c) {
+        lock_guard<mutex> lock(m);
+        if (head == nullptr) {
+            head = c;
+            return;
+        }
+        Coupon* curr = head;
+        while (curr->getNext() != nullptr) curr = curr->getNext();
+        curr->setNext(c);
+    }
+
+    // Thread-safe: get list of applicable coupon names
+    vector<string> getApplicableCoupons(Cart& cart) {
+        lock_guard<mutex> lock(m);
+        vector<string> result;
+        Coupon* curr = head;
+        while (curr != nullptr) {
+            if (curr->isApplicable(cart))
+                result.push_back(curr->getName());
+            curr = curr->getNext();
+        }
+        return result;
+    }
+
+    // Thread-safe: apply all applicable coupons
+    double applyAll(Cart& cart) {
+        lock_guard<mutex> lock(m);
+        if (head != nullptr) head->applyDiscount(cart);
+        return cart.getCurrentTotal();
+    }
+};
+CouponManager* CouponManager::instance = nullptr;
+mutex CouponManager::mtx;
+```
+
+### 5.7 Client (Main)
+
+```cpp
+int main() {
+    // ---- 1. Create products ----
+    Product p1("Jacket", "Clothing", 1000);
+    Product p2("Smartphone", "Electronics", 2000);
+    Product p3("Jeans", "Clothing", 1000);
+    Product p4("Headphones", "Electronics", 2000);
+
+    // ---- 2. Add to cart ----
+    Cart cart;
+    cart.addProduct(&p1, 1);
+    cart.addProduct(&p2, 1);
+    cart.addProduct(&p3, 2);
+    cart.addProduct(&p4, 1);
+    cart.setLoyaltyMember(true);
+    cart.setPaymentBank("ABC");
+
+    cout << "Original Cart Value: ₹" << cart.getOriginalTotal() << "\n\n";
+
+    // ---- 3. Register coupons ----
+    CouponManager* mgr = CouponManager::getInstance();
+    mgr->registerCoupon(new SeasonalOffer(10, "Clothing"));
+    mgr->registerCoupon(new LoyaltyDiscount(5));
+    mgr->registerCoupon(new BulkPurchase(1000, 100));
+    mgr->registerCoupon(new BankingCoupon("ABC", 2000, 15, 500));
+
+    // ---- 4. Show applicable coupons ----
+    cout << "Applicable Coupons:\n";
+    for (auto& name : mgr->getApplicableCoupons(cart))
+        cout << "  - " << name << "\n";
+    cout << "\n";
+
+    // ---- 5. Apply all ----
+    double finalTotal = mgr->applyAll(cart);
+    cout << "\nFinal Cart Total after Discounts: ₹" << finalTotal << "\n";
+
+    return 0;
+}
+```
+
+### 5.8 Sample Output
+
+```
+Original Cart Value: ₹7000
+
+Applicable Coupons:
+  - Seasonal Offer (10% on Clothing)
+  - Loyalty Discount (5%)
+  - Bulk Purchase (₹100 off)
+  - Banking Coupon (ABC, 15% up to ₹500)
+
+Applied Seasonal Offer: ₹300
+Applied Loyalty Discount: ₹335
+Applied Bulk Purchase: ₹100
+Applied Banking Coupon: ₹500
+
+Final Cart Total after Discounts: ₹5765
+```
+
+*(Illustrative output — actual numbers depend on internal order of application; the key point is the chain applies each applicable coupon and stops when non-combinable is hit.)*
+
+---
+
+## 6. Key Design Insights
+
+### 6.1 Why Chain of Responsibility (over Decorator)?
+
+Both work. **Chain of Responsibility** is a natural fit because:
+- Coupons form a *linked list* — perfect for chaining
+- Each coupon decides whether it *stops the chain* (`isCombinable()` returns false) or *forwards* to the next
+- Adding a new coupon = append to the chain; no existing code changes
+- The lecture explicitly notes this is a **subjective design decision** — you can discuss both with the interviewer
+
+### 6.2 Template Method in `Coupon.applyDiscount()`
+
+Enforces the **fixed order**:
+```
+1. isApplicable(cart)  → if false, do nothing
+2. getDiscount(cart)   → calculate discount amount
+3. cart.applyDiscount(discount)
+4. isCombinable(cart)  → if false, stop; else recurse to next
+```
+
+Even though concrete coupons override `isApplicable`, `getDiscount`, `isCombinable`, the **order cannot be changed**.
+
+### 6.3 Thread Safety in CouponManager
+
+- `registerCoupon` and `applyAll` are guarded by `mutex`
+- Critical for scenarios like "only 4 coupons available" — ensures no two threads can both think they're using the last coupon
+- Uses `std::mutex` + `lock_guard` (C++ equivalent of Java's `synchronized` / `ReentrantLock`)
+
+### 6.4 Open/Closed Principle — and Its Trade-off
+
+The lecture is honest about where **OCP is broken**:
+
+> "When we create a new strategy, we must add an `if` branch in `StrategyManager::getStrategy`. This breaks OCP — but only in **one** factory class."
+
+Key insight: SOLID principles are **guidelines**. Losing OCP inside one low-level factory is an **acceptable trade-off**, because:
+- All object creation must be handled *somewhere*
+- Keeping it in a dedicated factory keeps the impact localized
+- High-level business logic (Cart, Coupon, CouponManager) remains unaffected
+
+### 6.5 Relationship Choices
+
+| Relationship | Where | Why |
+|--------------|-------|-----|
+| **Composition (◆)** | Cart ◇◆ CartItem | CartItem cannot exist without Cart |
+| **Composition (◆)** | CouponManager ◇◆ Coupon | Coupons only exist via the manager |
+| **Aggregation (◇)** | CartItem ◇── Product | Product exists independently |
+| **Association (→)** | Cart → Coupon (passed as parameter) | Coupon operates on the cart, doesn't own it |
+| **HAS-A** | Each Coupon → DiscountStrategy | Strategy applied to calculate discount |
+
+---
+
+## 7. Real-World Integration Notes
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    INTEGRATION SCENARIOS                            │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   Zomato / Swiggy clone (Tomato):                                   │
+│   • Replace Product → MenuItem                                      │
+│   • Replace CartItem → FoodItem with quantity                       │
+│   • Add `restaurantId` to Cart                                      │
+│   • Same CouponManager + Coupon + Strategy stack works unchanged    │
+│                                                                      │
+│   Zepto / Blinkit:                                                  │
+│   • Add category-specific coupons (e.g., "10% off Electronics")     │
+│   • Same design; just add new Coupon subclass                       │
+│                                                                      │
+│   Amazon:                                                           │
+│   • Multiple sellers → cart becomes multi-seller cart               │
+│   • Each seller can have own coupons                                │
+│   • Chain logic works per-seller by iterating carts                 │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 8. Key Takeaways
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    DISCOUNT COUPON ENGINE — SUMMARY                 │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   🎯 FIVE DESIGN PATTERNS COMPOSED                                  │
+│   • Strategy       → Pluggable discount algorithms                  │
+│   • Chain of Resp. → Coupons chained, combinable or not             │
+│   • Template Method→ Fixed apply order in Coupon                    │
+│   • Factory        → StrategyManager creates strategies             │
+│   • Singleton      → CouponManager, StrategyManager                 │
+│                                                                      │
+│   🧩 KEY INSIGHTS                                                   │
+│   • Coupon chaining via CoR beats Decorator for "combinable" rule   │
+│   • Thread safety with mutex protects shared chain state            │
+│   • OCP trade-off in one factory is acceptable                      │
+│   • Composition relationship design is deliberate and subjective    │
+│                                                                      │
+│   ✅ DESIGN WINS                                                    │
+│   • Add new coupon = new subclass + one registerCoupon call         │
+│   • Add new strategy = new DiscountStrategy subclass                │
+│   • Two-level discount (product + cart) handled by isApplicable()   │
+│   • Thread-safe and plug-and-play                                   │
+│                                                                      │
+│   🎓 INTERVIEW WISDOM                                               │
+│   • Discuss design pattern choices with the interviewer             │
+│   • Focus on UML first — code is easy once structure is clear       │
+│   • 1-hour interview → solid UML + skeleton code, not full impl.    │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+This design demonstrates that **real-world LLD problems rarely use just one pattern** — the best designs compose several patterns to handle distinct concerns (discount math, coupon chaining, object creation, thread safety, lifecycle management) cleanly and extensibly.
+
+---
+
+## 25. Bridge Pattern | Real-world use case + Code (31:21)
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
