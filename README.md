@@ -16139,4 +16139,5 @@ When in doubt, propose both to the interviewer and discuss the trade-off — thi
 
 ## 26. Build Zepto | 10-Mins Quick Commerce | Inventory Management (1:36:12)
 
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
