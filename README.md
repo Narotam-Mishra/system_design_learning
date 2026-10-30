@@ -16139,5 +16139,679 @@ When in doubt, propose both to the interviewer and discuss the trade-off — thi
 
 ## 26. Build Zepto | 10-Mins Quick Commerce | Inventory Management (1:36:12)
 
+This tutorial designs a **quick-commerce / 10-minute delivery app** (Zepto/Blinkit clone) with the primary focus on **inventory management across multiple dark stores**. The key insight: the same design answers any "inventory management" system design interview question.
+
+---
+
+## 1. Problem Statement
+
+When you order from Zepto/Blinkit:
+- There are **multiple dark stores** (inventory-holding locations) near you.
+- Your nearest dark store may **not have all items** in your cart.
+- Items may be split across the **1st nearest, 2nd nearest, … dark stores**.
+- **Multiple delivery partners** may be assigned — each picks items from a different dark store.
+- This is fundamentally an **inventory management** problem.
+
+So the design must handle:
+- Managing inventory (add/remove items)
+- Replenishment strategies (threshold-based, weekly, etc.)
+- Multiple inventory stores (DB, file, extensible)
+- Listing items from dark stores within a radius (e.g., 5 km) of the user
+- Splitting orders across stores / delivery agents when a single store can't fulfill
+
+---
+
+## 2. Functional Requirements
+
+1. **Manage inventory** — add/remove products.
+2. **Replenishment strategies** — threshold-based, weekly, extensible to new strategies.
+3. **Multiple inventory stores** — e.g., `DBInventoryStore`, extensible to `FileInventoryStore`.
+4. **User can see items** from dark stores within 5 km of their location.
+5. **Order splitting** — if one dark store can't fulfill an order, split across multiple dark stores and assign multiple delivery agents.
+
+> Non-functional requirements are skipped (standard: scalability, low latency, etc.). Payment gateway is intentionally skipped (already covered elsewhere).
+
+---
+
+## 3. Happy Flow
+
+```
+User opens app
+  → sees items from nearby dark stores
+  → adds items to cart
+  → places order
+  → OrderManager checks nearby dark stores
+  → if 1 store can fulfill → 1 delivery partner
+  → else → split across multiple stores → multiple delivery partners
+  → delivery partners deliver to user's location
+```
+
+---
+
+## 4. Class-by-Class Design (Bottom-Up)
+
+### 4.1 Product (Model)
+
+```cpp
+class Product {
+    int sku;        // unique identifier (SKU)
+    string name;
+    double price;
+public:
+    Product(int sku, string name, double price)
+        : sku(sku), name(name), price(price) {}
+    int getSku() const { return sku; }
+    string getName() const { return name; }
+    double getPrice() const { return price; }
+};
+```
+
+**Why SKU?** In inventory systems, SKU is the canonical unique identifier (like the barcode/ID on products in a mall).
+
+---
+
+### 4.2 ProductFactory (Factory Pattern)
+
+```cpp
+class ProductFactory {
+public:
+    static Product* createProduct(int sku) {
+        // In reality: fetch from DB. Here: mock mapping.
+        if (sku == 1001) return new Product(1001, "Apple", 20);
+        if (sku == 1002) return new Product(1002, "Banana", 10);
+        if (sku == 1003) return new Product(1003, "Chocolate", 50);
+        if (sku == 2001) return new Product(2001, "T-Shirt", 500);
+        if (sku == 2002) return new Product(2002, "Jeans", 1000);
+        return new Product(sku, "Item-" + to_string(sku), 100);
+    }
+};
+```
+
+**Pattern:** Factory — avoids scattering `new Product(...)` everywhere; centralizes creation logic.
+
+---
+
+### 4.3 InventoryStore (Abstract) + DBInventoryStore (Concrete)
+
+```cpp
+// ---------- Abstraction ----------
+class InventoryStore {
+public:
+    virtual void addProduct(Product* p, int qty) = 0;
+    virtual void removeProduct(int sku, int qty) = 0;
+    virtual int checkStock(int sku) = 0;
+    virtual vector<Product*> listAvailableProducts() = 0;
+    virtual ~InventoryStore() {}
+};
+
+// ---------- Concrete implementation ----------
+class DBInventoryStore : public InventoryStore {
+    map<int, int> stocks;        // SKU -> quantity
+    map<int, Product*> products; // SKU -> Product*
+
+public:
+    void addProduct(Product* p, int qty) override {
+        int sku = p->getSku();
+        if (products.find(sku) == products.end()) {
+            products[sku] = p;
+        }
+        stocks[sku] += qty;
+    }
+
+    void removeProduct(int sku, int qty) override {
+        if (stocks.find(sku) == stocks.end()) return;
+        int remaining = stocks[sku] - qty;
+        if (remaining > 0) stocks[sku] = remaining;
+        else stocks.erase(sku);
+    }
+
+    int checkStock(int sku) override {
+        return stocks.count(sku) ? stocks[sku] : 0;
+    }
+
+    vector<Product*> listAvailableProducts() override {
+        vector<Product*> available;
+        for (auto& [sku, qty] : stocks) {
+            if (qty > 0 && products.count(sku))
+                available.push_back(products[sku]);
+        }
+        return available;
+    }
+};
+```
+
+**Design notes:**
+- `InventoryStore` is an **abstraction**; `DBInventoryStore` is one **implementation**.
+- Uses **two maps** — `stocks` (SKU→qty) and `products` (SKU→Product) — for O(1) lookup by SKU.
+- **Why map instead of list?** Repeated lookups (checkStock, removeProduct) would be O(n) with a list; map gives O(1) (or O(log n)).
+- Extensible: a future `FileInventoryStore` can implement the same interface → this is the **Bridge pattern** (abstraction and implementation vary independently).
+
+---
+
+### 4.4 InventoryManager (Delegation / "Manager" role)
+
+```cpp
+class InventoryManager {
+    InventoryStore* store;   // has-a
+public:
+    InventoryManager(InventoryStore* store) : store(store) {}
+
+    void addStock(int sku, int qty) {
+        Product* p = ProductFactory::createProduct(sku);
+        store->addProduct(p, qty);
+    }
+    void removeStock(int sku, int qty) { store->removeProduct(sku, qty); }
+    int checkStock(int sku)            { return store->checkStock(sku); }
+    vector<Product*> listAvailable()   { return store->listAvailableProducts(); }
+};
+```
+
+**Design notes:**
+- Manager **delegates** to the store.
+- Manager knows **what** to do (add stock, check stock), store knows **how**.
+- Pre-create the `Product` via factory before handing it to the store — store only deals with `Product*`, not SKUs.
+- **Not a Singleton** — one InventoryManager **per dark store** (50 dark stores → 50 managers).
+
+---
+
+### 4.5 ReplenishStrategy (Strategy Pattern)
+
+```cpp
+class ReplenishStrategy {
+public:
+    // itemsToReplenish: map<SKU, qtyToAdd>
+    virtual void replenish(map<int,int>& itemsToReplenish,
+                           InventoryManager* manager) = 0;
+    virtual ~ReplenishStrategy() {}
+};
+
+// ---------- Threshold-based ----------
+class ThresholdReplenishStrategy : public ReplenishStrategy {
+    int threshold;
+public:
+    ThresholdReplenishStrategy(int threshold) : threshold(threshold) {}
+
+    void replenish(map<int,int>& itemsToReplenish,
+                   InventoryManager* manager) override {
+        for (auto& [sku, qtyToAdd] : itemsToReplenish) {
+            int currentStock = manager->checkStock(sku);
+            if (currentStock < threshold) {
+                manager->addStock(sku, qtyToAdd);
+            }
+        }
+    }
+};
+
+// ---------- Weekly ----------
+class WeeklyReplenishStrategy : public ReplenishStrategy {
+public:
+    void replenish(map<int,int>& itemsToReplenish,
+                   InventoryManager* manager) override {
+        // Runs weekly (scheduler); adds items unconditionally
+        for (auto& [sku, qtyToAdd] : itemsToReplenish) {
+            manager->addStock(sku, qtyToAdd);
+        }
+    }
+};
+```
+
+**Design notes:**
+- **Strategy pattern** → new strategies can be added without touching `DarkStore`.
+- Strategy **delegates to InventoryManager** (which delegates to Store).
+- Threshold strategy needs `threshold` field; weekly doesn't.
+
+---
+
+### 4.6 DarkStore (Composition with InventoryManager)
+
+```cpp
+class DarkStore {
+    string name;
+    double x, y;                          // coordinates
+    InventoryManager* inventoryManager;   // composition
+    ReplenishStrategy* replenishStrategy; // strategy
+
+public:
+    DarkStore(string name, double x, double y)
+        : name(name), x(x), y(y) {
+        // Composition: DarkStore owns its InventoryManager
+        inventoryManager = new InventoryManager(new DBInventoryStore());
+    }
+
+    ~DarkStore() {
+        delete inventoryManager;
+        delete replenishStrategy;
+    }
+
+    double distanceTo(double ux, double uy) {
+        return sqrt((x - ux)*(x - ux) + (y - uy)*(y - uy));
+    }
+
+    void runReplenish(map<int,int>& itemsToReplenish) {
+        if (replenishStrategy) {
+            replenishStrategy->replenish(itemsToReplenish, inventoryManager);
+        }
+    }
+
+    void setReplenishStrategy(ReplenishStrategy* s) { replenishStrategy = s; }
+    InventoryManager* getInventoryManager() { return inventoryManager; }
+    string getName() { return name; }
+    double getX() { return x; } double getY() { return y; }
+};
+```
+
+**UML relationships:**
+- `DarkStore ◇◆── InventoryManager` → **Composition** (manager exists only inside store; created in constructor).
+- `DarkStore ──▷ ReplenishStrategy` → **Aggregation/Association** (strategy is injectable).
+
+**Why composition?** A manager is uniquely tied to one dark store — it shouldn't exist independently.
+
+---
+
+### 4.7 DarkStoreManager (Singleton)
+
+```cpp
+class DarkStoreManager {
+    static DarkStoreManager* instance;
+    vector<DarkStore*> darkStores;
+    DarkStoreManager() {}
+
+public:
+    static DarkStoreManager* getInstance() {
+        if (!instance) instance = new DarkStoreManager();
+        return instance;
+    }
+
+    void registerDarkStore(DarkStore* ds) { darkStores.push_back(ds); }
+
+    vector<DarkStore*> getNearbyStores(double ux, double uy, double maxDist) {
+        vector<pair<double, DarkStore*>> candidates;
+        for (auto* ds : darkStores) {
+            double d = ds->distanceTo(ux, uy);
+            if (d <= maxDist) candidates.push_back({d, ds});
+        }
+        sort(candidates.begin(), candidates.end(),
+             [](auto& a, auto& b){ return a.first < b.first; });
+
+        vector<DarkStore*> result;
+        for (auto& [d, ds] : candidates) result.push_back(ds);
+        return result;
+    }
+};
+DarkStoreManager* DarkStoreManager::instance = nullptr;
+```
+
+**Why Singleton here?** One global manager in the app that tracks **all** dark stores. Contrast with `InventoryManager`, which is **per-store**, not singleton.
+
+---
+
+### 4.8 Cart & User
+
+```cpp
+class Cart {
+    vector<pair<Product*, int>> items;
+    double total;
+public:
+    void addItem(int sku, int qty) {
+        Product* p = ProductFactory::createProduct(sku);
+        items.push_back({p, qty});
+        total += p->getPrice() * qty;
+    }
+    double getTotal() { return total; }
+    vector<pair<Product*, int>>& getItems() { return items; }
+};
+
+class User {
+    string name;
+    double x, y;
+    Cart* cart;   // composition
+public:
+    User(string name, double x, double y)
+        : name(name), x(x), y(y) { cart = new Cart(); }
+    ~User() { delete cart; }
+    Cart* getCart() { return cart; }
+    double getX() { return x; } double getY() { return y; }
+    string getName() { return name; }
+};
+```
+
+**UML:** `User ◆── Cart` → **Composition** (cart created with user, dies with user).
+
+---
+
+### 4.9 DeliveryPartner
+
+```cpp
+class DeliveryPartner {
+    string name;
+public:
+    DeliveryPartner(string name) : name(name) {}
+    string getName() { return name; }
+};
+```
+Minimal prototype class — details are intentionally out of scope.
+
+---
+
+### 4.10 Order (Model)
+
+```cpp
+class Order {
+    static int nextId;
+    int orderId;
+    User* user;
+    vector<pair<Product*, int>> items;
+    vector<DeliveryPartner*> partners;
+    double total;
+public:
+    Order(User* user) : user(user), orderId(++nextId), total(0) {}
+    int getOrderId() { return orderId; }
+    vector<pair<Product*, int>>& getItems() { return items; }
+    vector<DeliveryPartner*>& getPartners() { return partners; }
+    void setTotal(double t) { total = t; }
+    double getTotal() { return total; }
+};
+int Order::nextId = 0;
+```
+
+**UML (has-a):** `Order ── User`, `Order ── Item*`, `Order ── DeliveryPartner*` (1-to-many partners).
+
+---
+
+### 4.11 OrderManager (Singleton) — the core algorithm
+
+```cpp
+class OrderManager {
+    static OrderManager* instance;
+    vector<Order*> orders;
+    OrderManager() {}
+
+public:
+    static OrderManager* getInstance() {
+        if (!instance) instance = new OrderManager();
+        return instance;
+    }
+
+    Order* placeOrder(User* user, Cart* cart, DarkStoreManager* dsm) {
+        // 1) Nearby dark stores (within 5 km)
+        auto nearby = dsm->getNearbyStores(user->getX(), user->getY(), 5.0);
+        auto requestedItems = cart->getItems();
+
+        if (nearby.empty()) { cout << "No dark store nearby\n"; return nullptr; }
+
+        Order* order = new Order(user);
+        int partnerId = 0;
+
+        // 2) FAST PATH: can the nearest store fulfill everything?
+        bool allInFirst = true;
+        DarkStore* first = nearby[0];
+        for (auto& [p, qty] : requestedItems) {
+            if (first->getInventoryManager()->checkStock(p->getSku()) < qty) {
+                allInFirst = false; break;
+            }
+        }
+
+        if (allInFirst) {
+            // Deduct stock
+            for (auto& [p, qty] : requestedItems)
+                first->getInventoryManager()->removeStock(p->getSku(), qty);
+
+            order->getItems() = requestedItems;
+            order->setTotal(cart->getTotal());
+
+            DeliveryPartner* dp = new DeliveryPartner("Partner-" + to_string(++partnerId));
+            order->getPartners().push_back(dp);
+            orders.push_back(order);
+            return order;
+        }
+
+        // 3) SPLIT PATH: iterate stores, take min(available, needed) per SKU
+        map<int,int> allItems;   // SKU -> qty still needed
+        for (auto& [p, qty] : requestedItems) allItems[p->getSku()] = qty;
+
+        for (DarkStore* ds : nearby) {
+            if (allItems.empty()) break;
+
+            bool assigned = false;
+            vector<int> toErase;
+
+            for (auto& [sku, qtyNeeded] : allItems) {
+                int avail = ds->getInventoryManager()->checkStock(sku);
+                if (avail <= 0) continue;
+
+                int take = min(avail, qtyNeeded);
+                ds->getInventoryManager()->removeStock(sku, take);
+
+                order->getItems().push_back(
+                    {ProductFactory::createProduct(sku), take});
+
+                if (take < qtyNeeded) {
+                    allItems[sku] = qtyNeeded - take;   // still need more
+                } else {
+                    toErase.push_back(sku);             // satisfied
+                }
+                assigned = true;
+            }
+
+            for (int sku : toErase) allItems.erase(sku);
+
+            if (assigned) {
+                order->getPartners().push_back(
+                    new DeliveryPartner("Partner-" + to_string(++partnerId)));
+            }
+        }
+
+        if (!allItems.empty()) {
+            cout << "Could not fulfill: ";
+            for (auto& [sku, q] : allItems) cout << "SKU " << sku << " qty " << q << "\n";
+        }
+
+        // 4) Recompute total based on what was actually picked
+        double total = 0;
+        for (auto& [p, q] : order->getItems()) total += p->getPrice() * q;
+        order->setTotal(total);
+
+        orders.push_back(order);
+        return order;
+    }
+
+    vector<Order*> getAllOrders() { return orders; }
+};
+OrderManager* OrderManager::instance = nullptr;
+```
+
+**Algorithm at a glance:**
+
+```
+placeOrder(user, cart, dsm):
+  nearby ← dsm.getNearbyStores(user.x, user.y, 5km)
+  if nearby empty → error
+  if nearby[0] can fulfill all items:
+      deduct, assign 1 partner, return
+  allItems ← {sku: qty needed}  from cart
+  for each store in nearby (sorted by distance):
+      for each (sku, qtyNeeded) in allItems:
+          take = min(store.stock[sku], qtyNeeded)
+          if take > 0: deduct, record in order, update allItems
+      if store contributed ≥ 1 item → assign a partner
+  if allItems not empty → report unfulfillable SKUs
+  recompute order total, save order
+```
+
+---
+
+### 4.12 Zepto (Orchestrator / Facade)
+
+```cpp
+class Zepto {
+public:
+    static void initialize() {
+        // Create & register dark stores
+        DarkStore* a = new DarkStore("DarkStore-A", 0, 0);
+        a->setReplenishStrategy(new ThresholdReplenishStrategy(10));
+        a->getInventoryManager()->addStock(1001, 5);  // Apple
+        a->getInventoryManager()->addStock(1002, 2);  // Banana
+
+        DarkStore* b = new DarkStore("DarkStore-B", 1, 1);
+        b->getInventoryManager()->addStock(1001, 3);
+        b->getInventoryManager()->addStock(1003, 10); // Chocolate
+
+        DarkStore* c = new DarkStore("DarkStore-C", 2, 2);
+        c->getInventoryManager()->addStock(1002, 5);
+        c->getInventoryManager()->addStock(2001, 10); // T-Shirt
+
+        DarkStoreManager::getInstance()->registerDarkStore(a);
+        DarkStoreManager::getInstance()->registerDarkStore(b);
+        DarkStoreManager::getInstance()->registerDarkStore(c);
+    }
+
+    static void showAllItems(User* user) {
+        auto stores = DarkStoreManager::getInstance()
+                        ->getNearbyStores(user->getX(), user->getY(), 5.0);
+        for (auto* ds : stores) {
+            for (auto* p : ds->getInventoryManager()->listAvailable()) {
+                cout << p->getSku() << " " << p->getName()
+                     << " ₹" << p->getPrice() << "\n";
+            }
+        }
+    }
+};
+```
+
+**Orchestrator role:** single entry point — calls `OrderManager::placeOrder`, `DarkStoreManager::getNearbyStores`, `showAllItems`, etc. It knows nothing internally; just coordinates.
+
+---
+
+## 5. Clean UML (text form)
+
+```
+                            ┌──────────────────┐
+                            │      Zepto       │  (orchestrator)
+                            └────────┬─────────┘
+                                     │ uses
+              ┌──────────────────────┼───────────────────────┐
+              ▼                      ▼                       ▼
+   ┌────────────────────┐  ┌───────────────────┐  ┌──────────────────────┐
+   │ DarkStoreManager   │  │  OrderManager     │  │     (any others)     │
+   │  (Singleton)       │  │  (Singleton)      │  └──────────────────────┘
+   │  - list<DarkStore> │  │  - list<Order>    │
+   │  + getNearby(...)  │  │  + placeOrder()   │
+   │  + register(ds)    │  └─────────┬─────────┘
+   └─────────┬──────────┘            │
+             │ 1..*                  │ uses
+             ▼                       ▼
+   ┌────────────────────────┐  ┌─────────────────┐  ┌────────────────────┐
+   │       DarkStore        │  │      Order      │  │  DeliveryPartner   │
+   │ - name, x, y           │  │ - id, user      │  │ - name             │
+   │ - InventoryManager  ◆  │  │ - items         │  └────────────────────┘
+   │ - ReplenishStrategy    │  │ - partners 1..* │
+   │ + distanceTo(ux,uy)    │  │ - total         │
+   │ + runReplenish(items)  │  └────────┬────────┘
+   └───────────┬────────────┘           │ has-a
+               │ composition            ▼
+               ▼                  ┌───────────┐    ┌───────────┐
+   ┌────────────────────────┐     │   User    │    │   Cart    │
+   │   InventoryManager     │     │ - name    │◆──▶│ - items   │
+   │ - InventoryStore *     │     │ - x, y    │    │ - total   │
+   │ + addStock             │     │ - Cart  ◆ │    └───────────┘
+   │ + removeStock          │     └───────────┘
+   │ + checkStock           │
+   │ + listAvailable()      │
+   └───────────┬────────────┘
+               │ delegates to
+               ▼
+   ┌────────────────────────┐          ┌───────────────────────┐
+   │   InventoryStore       │◁─────────│ DBInventoryStore      │
+   │   (abstract)           │  impl    │ - map<sku,qty>        │
+   │ + addProduct           │          │ - map<sku,Product*>   │
+   │ + removeProduct        │          └───────────────────────┘
+   │ + checkStock           │
+   │ + listAvailable()      │          ┌───────────────────────┐
+   └────────────────────────┘◁─────────│ FileInventoryStore    │
+                                       │ (future)              │
+                                       └───────────────────────┘
+
+   ┌────────────────────────┐   creates   ┌──────────────┐
+   │    ProductFactory      │────────────▶│   Product    │
+   │ + createProduct(sku)   │             │ sku, name,   │
+   └────────────────────────┘             │ price        │
+                                          └──────────────┘
+
+   ┌────────────────────────┐          ┌───────────────────────────┐
+   │  ReplenishStrategy     │◁─────────│ ThresholdReplenishStrategy│
+   │  (abstract)            │          │ - threshold               │
+   │ + replenish(items,mgr) │◁─────────│ WeeklyReplenishStrategy   │
+   └────────────────────────┘          └───────────────────────────┘
+```
+
+**Relationship legend:**
+- `◆` = **Composition** (owned, lifetime-bound)
+- `◇` = **Aggregation** (weak ownership)
+- `──▷` / `◁──` = **Inheritance / Implementation**
+- `──` = **Association / has-a**
+- `1..*` = **One-to-many**
+
+---
+
+## 6. Design Patterns Used
+
+| Pattern | Where | Why |
+|---|---|---|
+| **Factory** | `ProductFactory.createProduct(sku)` | Centralize product creation; hide DB/backing logic |
+| **Strategy** | `ReplenishStrategy` (Threshold / Weekly) | Pluggable replenishment; add new strategies without touching `DarkStore` |
+| **Singleton** | `DarkStoreManager`, `OrderManager` | One global registry of dark stores / one global order ledger |
+| **Bridge** | `InventoryStore` (abstraction) vs `DBInventoryStore` / `FileInventoryStore` (implementations) | Abstraction and implementation vary independently |
+| **Composition** | `DarkStore ◆─ InventoryManager`, `User ◆─ Cart` | Child's lifetime bound to parent |
+| **Delegation** | `InventoryManager → InventoryStore`, `DarkStore → InventoryManager` | Layered responsibility; loose coupling |
+| **Facade / Orchestrator** | `Zepto` | Single entry point for the client |
+
+> **Important nuance:** `InventoryManager` is **NOT** singleton — each dark store needs its own manager. `DarkStoreManager` and `OrderManager` **are** singletons because they represent global application state.
+
+---
+
+## 7. Worked Example (Happy Flow)
+
+**Setup:**
+- `DarkStore-A` at (0,0): Apple×5 (1001), Banana×2 (1002)
+- `DarkStore-B` at (1,1): Apple×3, Chocolate×10 (1003)
+- `DarkStore-C` at (2,2): Banana×5, T-Shirt×10 (2001)
+
+**User:** Aditya at (1,0); all 3 stores within 5 km.
+
+**Cart:** Apple×4, Banana×3, Chocolate×2.
+
+**Walkthrough:**
+1. `getNearbyStores((1,0), 5km)` → [A, B, C] (sorted by distance).
+2. Check A: has 5 apples but only 2 bananas → **cannot fulfill all**.
+3. Fallback: map `{1001:4, 1002:3, 1003:2}`.
+   - **Store A:** take Apple×4 (A had 5 → 1 left), take Banana×2 (A had 2 → 0 left). Remaining `{1002:1, 1003:2}`. → **Partner-1**
+   - **Store B:** no banana; take Chocolate×2 (B had 10 → 8 left). Remaining `{1002:1}`. → **Partner-2**
+   - **Store C:** take Banana×1 (C had 5 → 4 left). Remaining `{}`. → **Partner-3**
+4. Total = Apple×4(20) + Banana×3(10) + Chocolate×2(50) = **₹210**.
+5. Order saved with 3 delivery partners.
+
+---
+
+## 8. Extensions (Homework from the Tutorial)
+
+1. **Rider Mapping Algorithm** — instead of assigning "any" partner, pick the nearest available partner or highest-rated one. (Also applies to deciding which delivery partner picks from which store.)
+2. **Payment Gateway or Coupon Mechanism** — integrate one; reuse patterns from previous modules (`Zomato`-style payment integration).
+3. **Modularize the code** — split the single-file code into separate files per class (as in the earlier `Zomato` module).
+
+---
+
+## 9. Key Takeaways for Interviews
+
+- **"10-minute delivery" ⇒ inventory management.** Reuse the same design for any inventory-management question.
+- **Bottom-up UML:** start with the smallest model (`Product`), then aggregate (`InventoryStore` → `InventoryManager` → `DarkStore` → `DarkStoreManager`), then user-side (`Cart`/`User`), then `Order`/`OrderManager`, and finally an **orchestrator** (`Zepto`).
+- **Maps over lists** for O(1) SKU lookups — critical because replenishment repeatedly mutates stock.
+- **Composition vs Singleton:** managers tied to one entity (`InventoryManager`) → per-instance; global registries (`DarkStoreManager`, `OrderManager`) → singleton.
+- **Bridge pattern** emerges naturally from `InventoryStore` abstraction + `DBInventoryStore` implementation; new backends can be added without changing `InventoryManager`.
+- **Order-splitting** is a **two-pass greedy**: try the closest store first; if it fails, iterate stores taking `min(available, needed)` per SKU, and assign one delivery partner per contributing store.
+- **Delegation chain:** `DarkStoreManager → DarkStore → InventoryManager → InventoryStore` — each layer hides the next, keeping coupling loose.
+
+---
+
+## 27. Build Tinder | Dating Site (1:21:58)
 
 summaries system design tutorial transcript in details along with useful code examples and diagrams
