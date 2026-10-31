@@ -16814,4 +16814,838 @@ public:
 
 ## 27. Build Tinder | Dating Site (1:21:58)
 
+A detailed walkthrough of the system design tutorial that builds a **Tinder/Bumble/Hinge clone** from scratch, focusing on requirements, happy flow, UML design, design patterns, and C++ code.
+
+---
+
+## 1. Introduction & Motivation
+
+**What we build:** A dating application (Tinder/Bumble/Hinge clone) using **Low-Level Design (LLD)**.
+
+**Why this problem is interesting & interview-relevant:**
+- Modern interviews frequently ask for dating/matrimonial app LLD.
+- It exercises **matching algorithms** (swipe/matching score), **notifications**, **chat**, **nearby search**, and various **design patterns**.
+
+---
+
+## 2. Functional Requirements
+
+| # | Requirement |
+|---|---|
+| 1 | User can **swipe left or right** on a profile |
+| 2 | User can **set up / edit their own profile** (name, bio, interests, photos, etc.) |
+| 3 | User can **set preferences** (interested gender, location radius, age range, interests) |
+| 4 | Once there is a **match**, users can **chat in a chat room** |
+| 5 | User can **see all profiles near their location** (e.g., within 5 km). Nearby must be **extensible** (different strategies) |
+| 6 | User should be **notified** on a new match and on receiving a new message |
+| 7 | **Matching should be based on several factors** (interests, location, preferences, etc.) with a **matching score** |
+
+**Non-functional:** Scalable, loosely coupled, follows design principles (same as usual).
+
+---
+
+## 3. Happy Flow
+
+```
+┌──────────┐   1. Swipe Left/Right   ┌──────────────┐
+│  User A  │ ──────────────────────▶ │ User B Profile│
+│(profile) │                          └──────────────┘
+│          │   2. Both swipe right → MATCH
+│          │ ──────────────────────────────▶ ┌────────────┐
+│          │                                  │ Chat Room  │
+│          │ ◀─── 3. Notification (match) ─── │            │
+│          │ ◀─── 4. Notification (msg) ───── │            │
+└──────────┘                                  └────────────┘
+```
+
+- User opens app → sees their profile (photo, bio, interests, gender/location preferences).
+- Sees other users' profiles → left/right swipes.
+- On a mutual right-swipe → match → chat room available.
+- Notifications on match and on new messages.
+
+---
+
+## 4. Why **Top-Down** Approach Here?
+
+- Most previous problems used **Bottom-Up** (small objects first → integrate into big).
+- This problem has **many small objects** (Preferences, Profile, Interest, Location, Swipe, Message, ChatRoom, Matchers...).
+- **Top-Down** = start with the biggest object (User), then create child objects it needs.
+- **Benefit:** Avoid confusion about how small objects integrate. You discover required classes naturally (e.g., "does User need a Location object?").
+- **Caveat:** There's no right/wrong — you *can* use Bottom-Up. But with 80–90% of problems, Bottom-Up suits; for object-heavy problems, Top-Down is easier.
+
+---
+
+## 5. UML & Design Walkthrough
+
+### 5.1 Notification System — **Observer Pattern**
+
+```mermaid
+classDiagram
+    class IObserver {
+        <<interface>>
+        +update(message: string)*
+    }
+    class NotificationObserver {
+        <<abstract>>
+        +update(message: string)*
+    }
+    class UserNotificationObserver {
+        +update(message: string)
+    }
+    class NotificationService {
+        -instance
+        -observers: map~string, IObserver~
+        -NotificationService()
+        +getInstance()
+        +registerObserver(userId, observer)
+        +removeObserver(userId)
+        +notifyUser(userId, message)
+        +notifyAll(message)
+    }
+    NotificationObserver <|-- UserNotificationObserver
+    NotificationService --> NotificationObserver : observes 1..*
+```
+
+**Key design tweaks vs. plain Observer:**
+- Uses a **`map<string, Observer>`** keyed by `userId` — because notifications target **specific users** (a match affects exactly two users).
+- Adds **`notifyUser(userId, message)`** in addition to the usual `notifyAll(message)`.
+- `remove(userId)` only needs `userId` (no observer arg) — simpler.
+- **Singleton** `NotificationService` because there's only one.
+
+**C++ code:**
+
+```cpp
+#include <bits/stdc++.h>
+using namespace std;
+
+class NotificationObserver {
+public:
+    virtual void update(const string& message) = 0;
+    virtual ~NotificationObserver() = default;
+};
+
+class UserNotificationObserver : public NotificationObserver {
+    string userId;
+public:
+    explicit UserNotificationObserver(string uid) : userId(move(uid)) {}
+    void update(const string& message) override {
+        cout << "[NOTIFY " << userId << "] " << message << "\n";
+    }
+};
+
+class NotificationService {
+private:
+    unordered_map<string, NotificationObserver*> observers;
+    NotificationService() = default;
+
+public:
+    NotificationService(const NotificationService&) = delete;
+    static NotificationService& getInstance() {
+        static NotificationService instance;
+        return instance;
+    }
+
+    void registerObserver(const string& userId, NotificationObserver* o) {
+        observers[userId] = o;
+    }
+    void removeObserver(const string& userId) { observers.erase(userId); }
+
+    void notifyUser(const string& userId, const string& msg) {
+        auto it = observers.find(userId);
+        if (it != observers.end()) it->second->update(msg);
+    }
+    void notifyAll(const string& msg) {
+        for (auto& [_, o] : observers) o->update(msg);
+    }
+};
+```
+
+---
+
+### 5.2 User Aggregates
+
+```mermaid
+classDiagram
+    class User {
+        +string userId
+        +UserProfile* profile
+        +UserPreferences* preferences
+        +NotificationObserver* observer
+        +map~string, Swipe~ swipeHistory
+        +swipe(targetUserId, Swipe action)
+        +hasLiked(userId) bool
+        +hasDisliked(userId) bool
+        +hasInteractedWith(userId) bool
+        +displayProfile()
+    }
+    class UserProfile {
+        +string name
+        +int age
+        +Gender gender
+        +string bio
+        +vector~string~ photos
+        +vector~Interest~ interests
+        +Location location
+        +display()
+    }
+    class UserPreferences {
+        +vector~Gender~ interestedIn
+        +int minAge
+        +int maxAge
+        +double maxDistance
+        +vector~string~ interests
+        +isAgeInRange(age) bool
+        +isGenderInterestedIn(Gender) bool
+    }
+    class Interest { +string name; +string category }
+    class Location { +double lat; +double lng; +distanceInKm(Location) }
+    class Swipe { <<enum>> LEFT, RIGHT }
+
+    User "1" *-- "1" UserProfile      : composition
+    User "1" *-- "1" UserPreferences  : composition
+    UserProfile *-- "1" Location
+    UserProfile o-- "*" Interest
+```
+
+**Key points:**
+- **User has-one Profile (composition)** — Profile cannot exist without User (diamond `◆`).
+- **User has-one Preferences (composition)**.
+- **Profile has-one Location, many Interests**.
+- **User maintains swipe history** as `map<userId, Swipe>` (LEFT/RIGHT enum).
+- **User holds its NotificationObserver** — registered with `NotificationService` inside the constructor (tightly coupled because it will never change for a User, and composition-managed).
+
+**C++ snippet:**
+
+```cpp
+enum class Gender { MALE, FEMALE, NON_BINARY, OTHER };
+enum class Swipe  { LEFT, RIGHT };
+
+struct Interest {
+    string name, category;
+};
+
+class Location {
+public:
+    double lat, lng;
+    Location(double la=0, double ln=0): lat(la), lng(ln) {}
+
+    // Haversine formula
+    double distanceInKm(const Location& o) const {
+        const double R = 6371.0;
+        auto toRad = [](double d){ return d * M_PI / 180.0; };
+        double dLat = toRad(o.lat - lat);
+        double dLon = toRad(o.lng - lng);
+        double a = sin(dLat/2)*sin(dLat/2) +
+                   cos(toRad(lat))*cos(toRad(o.lat)) *
+                   sin(dLon/2)*sin(dLon/2);
+        return R * 2 * atan2(sqrt(a), sqrt(1-a));
+    }
+};
+
+class UserProfile {
+    string name; int age; Gender gender;
+    string bio; vector<string> photos;
+    vector<Interest> interests;
+    Location location;
+public:
+    /* getters/setters ... */
+    void display() const { /* print all fields */ }
+};
+
+class UserPreferences {
+    vector<Gender> interestedIn;
+    int minAge = 18, maxAge = 100;
+    double maxDistance = 5.0;
+    vector<string> interests;
+public:
+    bool isAgeInRange(int age) const { return age >= minAge && age <= maxAge; }
+    bool isGenderInterestedIn(Gender g) const {
+        return find(interestedIn.begin(), interestedIn.end(), g) != interestedIn.end();
+    }
+    /* getters/setters ... */
+};
+
+class User {
+    string userId;
+    UserProfile* profile;
+    UserPreferences* preferences;
+    NotificationObserver* observer;
+    unordered_map<string, Swipe> swipeHistory;
+
+public:
+    User(string uid, UserProfile* p, UserPreferences* pref)
+        : userId(move(uid)), profile(p), preferences(pref) {
+        observer = new UserNotificationObserver(userId);
+        NotificationService::getInstance().registerObserver(userId, observer);
+    }
+    ~User() {
+        NotificationService::getInstance().removeObserver(userId);
+        delete observer; delete profile; delete preferences;
+    }
+
+    void swipe(const string& targetId, Swipe action) {
+        swipeHistory[targetId] = action;
+    }
+    bool hasLiked(const string& targetId) const {
+        auto it = swipeHistory.find(targetId);
+        return it != swipeHistory.end() && it->second == Swipe::RIGHT;
+    }
+    bool hasDisliked(const string& targetId) const {
+        auto it = swipeHistory.find(targetId);
+        return it != swipeHistory.end() && it->second == Swipe::LEFT;
+    }
+    bool hasInteractedWith(const string& t) const {
+        return swipeHistory.count(t) > 0;
+    }
+    void displayProfile() const { profile->display(); }
+    /* getters */
+};
+```
+
+---
+
+### 5.3 Nearby Search — **Strategy Pattern**
+
+```mermaid
+classDiagram
+    class INearByStrategy {
+        <<interface>>
+        +findNearbyUsers(Location, double maxDist, vector~User*~)*
+    }
+    class BasicNearByStrategy {
+        +findNearbyUsers(...)
+    }
+    class LocationService {
+        -static instance
+        -INearByStrategy* strategy
+        +getInstance()
+        +setStrategy(s)
+        +findNearbyUsers(Location, dist, users)
+    }
+    INearByStrategy <|.. BasicNearByStrategy
+    LocationService o-- INearByStrategy : strategy
+    LocationService --> "many" User : uses list
+```
+
+**Why Strategy?** Requirements said nearby should be extensible (blocked users, new validations, etc., in future).
+
+**C++ snippet:**
+
+```cpp
+class INearByStrategy {
+public:
+    virtual vector<User*> findNearbyUsers(
+        const Location& loc, double maxDistance, const vector<User*>& all) = 0;
+    virtual ~INearByStrategy() = default;
+};
+
+class BasicNearByStrategy : public INearByStrategy {
+public:
+    vector<User*> findNearbyUsers(
+        const Location& loc, double maxDistance, const vector<User*>& all) override
+    {
+        vector<User*> out;
+        for (User* u : all) {
+            if (u->getProfile()->location.distanceInKm(loc) <= maxDistance)
+                out.push_back(u);
+        }
+        return out;
+    }
+};
+
+class LocationService {
+    INearByStrategy* strategy;
+    LocationService() : strategy(new BasicNearByStrategy()) {}
+public:
+    static LocationService& getInstance() {
+        static LocationService s; return s;
+    }
+    void setStrategy(INearByStrategy* s) { delete strategy; strategy = s; }
+    vector<User*> findNearbyUsers(const Location& l, double d, const vector<User*>& u) {
+        return strategy->findNearbyUsers(l, d, u);
+    }
+};
+```
+
+---
+
+### 5.4 Matching Algorithm — **Chain of Responsibility**
+
+Real dating apps do **not** use a single score basis. They **combine several scorers**:
+1. **Basic** (gender + age + distance preference match) → 0 if fails, else **0.5**
+2. **Interest** (shared interests) → adds up to **+0.5** bonus
+3. **Location proximity** (closer → more points) → adds up to **+0.2**
+
+Chained in order: **LocationMatcher → InterestMatcher → BasicMatcher**.
+
+```mermaid
+classDiagram
+    class Matcher {
+        <<abstract>>
+        +calculateMatchScore(u1, u2)* double
+    }
+    class BasicMatcher {
+        +calculateMatchScore(u1, u2)
+    }
+    class InterestMatcher {
+        +calculateMatchScore(u1, u2)
+    }
+    class LocationMatcher {
+        +calculateMatchScore(u1, u2)
+    }
+    class MatcherFactory {
+        +createMatcher(type) Matcher*
+    }
+    class MatcherType {
+        <<enum>>
+        BASIC
+        INTEREST
+        LOCATION
+    }
+    Matcher <|-- BasicMatcher
+    Matcher <|-- InterestMatcher
+    Matcher <|-- LocationMatcher
+    InterestMatcher --> BasicMatcher : contains
+    LocationMatcher --> InterestMatcher : contains
+    MatcherFactory --> Matcher : creates
+```
+
+**Why not Decorator?** Because the chain is **fixed** (not dynamically rearranged) — this is **CoR intent** (sequential responsibility passing), not decoration.
+
+**Scores formula:**
+
+| Matcher | Scoring |
+|---|---|
+| Basic | Both users' gender/age/distance preferences match → **0.5**; else **0.0** |
+| Interest | `base + 0.5 × (sharedInterests / maxInterests)` |
+| Location | `base + 0.2 × (1 - distance / maxDistance)` |
+
+**C++ snippet:**
+
+```cpp
+class Matcher {
+public:
+    virtual double calculateMatchScore(User* u1, User* u2) = 0;
+    virtual ~Matcher() = default;
+};
+
+// ------------------ BASIC ------------------
+class BasicMatcher : public Matcher {
+public:
+    double calculateMatchScore(User* u1, User* u2) override {
+        // Gender preferences
+        if (!u1->getPreferences()->isGenderInterestedIn(u2->getProfile()->gender)) return 0.0;
+        if (!u2->getPreferences()->isGenderInterestedIn(u1->getProfile()->gender)) return 0.0;
+
+        // Age preferences
+        if (!u1->getPreferences()->isAgeInRange(u2->getProfile()->age)) return 0.0;
+        if (!u2->getPreferences()->isAgeInRange(u1->getProfile()->age)) return 0.0;
+
+        // Distance preferences
+        double d = u1->getProfile()->location.distanceInKm(u2->getProfile()->location);
+        if (d > u1->getPreferences()->maxDistance) return 0.0;
+        if (d > u2->getPreferences()->maxDistance) return 0.0;
+
+        return 0.5; // all base criteria met
+    }
+};
+
+// ------------------ INTEREST ------------------
+class InterestMatcher : public Matcher {
+    BasicMatcher basic;
+public:
+    double calculateMatchScore(User* u1, User* u2) override {
+        double base = basic.calculateMatchScore(u1, u2);
+        if (base == 0.0) return 0.0;
+
+        auto& i1 = u1->getProfile()->interests;
+        auto& i2 = u2->getProfile()->interests;
+
+        int shared = 0;
+        for (auto& a : i1)
+            for (auto& b : i2)
+                if (a.name == b.name) { ++shared; break; }
+
+        int maxInterest = max(i1.size(), i2.size());
+        double bonus = (maxInterest == 0) ? 0.0 : 0.5 * ((double)shared / maxInterest);
+        return base + bonus;
+    }
+};
+
+// ------------------ LOCATION ------------------
+class LocationMatcher : public Matcher {
+    InterestMatcher interest;
+public:
+    double calculateMatchScore(User* u1, User* u2) override {
+        double base = interest.calculateMatchScore(u1, u2);
+        if (base == 0.0) return 0.0;
+
+        double d = u1->getProfile()->location.distanceInKm(u2->getProfile()->location);
+        double maxD = min(u1->getPreferences()->maxDistance, u2->getPreferences()->maxDistance);
+
+        double proximity = (maxD <= 0) ? 0.0
+                                       : 0.2 * (1.0 - min(d, maxD) / maxD);
+        return base + proximity;
+    }
+};
+
+// ------------------ FACTORY ------------------
+enum class MatcherType { BASIC, INTEREST, LOCATION };
+
+class MatcherFactory {
+public:
+    static Matcher* createMatcher(MatcherType t) {
+        switch (t) {
+            case MatcherType::INTEREST: return new InterestMatcher();
+            case MatcherType::LOCATION: return new LocationMatcher();
+            default:                    return new BasicMatcher();
+        }
+    }
+};
+```
+
+**Why Factory?** Because you may not always want the **full** chain — a service could start with just an `InterestMatcher` or just a `BasicMatcher`.
+
+---
+
+### 5.5 Chat Room & Messages
+
+```mermaid
+classDiagram
+    class ChatRoom {
+        +string chatRoomId
+        +vector~string~ participants
+        +vector~Message~ messages
+        +addMessage(senderId, content)
+        +removeMessage(msgId)
+        +displayChat()
+    }
+    class Message {
+        +string senderId
+        +string content
+        +time_t timestamp
+        +getFormattedTime() string
+    }
+    ChatRoom "1" *-- "*" Message
+```
+
+**Chat room id convention:** `senderId + "_" + receiverId` (extendable to groups by using a participant vector rather than two fields).
+
+**C++ snippet:**
+
+```cpp
+class Message {
+public:
+    string senderId, content;
+    time_t timestamp;
+    Message(string s, string c) : senderId(move(s)), content(move(c)),
+                                  timestamp(time(nullptr)) {}
+    string getFormattedTime() const {
+        char buf[64];
+        strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", localtime(&timestamp));
+        return buf;
+    }
+};
+
+class ChatRoom {
+public:
+    string chatRoomId;
+    vector<string> participants;
+    vector<Message> messages;
+    ChatRoom(string id, string p1, string p2)
+        : chatRoomId(move(id)), participants{p1, p2} {}
+
+    void addMessage(const string& senderId, const string& content) {
+        messages.emplace_back(senderId, content);
+    }
+    bool hasParticipant(const string& uid) const {
+        return find(participants.begin(), participants.end(), uid) != participants.end();
+    }
+    void displayChat() const {
+        cout << "=== Chat " << chatRoomId << " ===\n";
+        for (auto& m : messages)
+            cout << "[" << m.getFormattedTime() << "] "
+                 << m.senderId << ": " << m.content << "\n";
+    }
+};
+```
+
+---
+
+### 5.6 Orchestrator — **DatingApp** (Singleton)
+
+```mermaid
+classDiagram
+    class DatingApp {
+        -static instance
+        -vector~User*~ users
+        -vector~ChatRoom*~ chatRooms
+        -Matcher* matcher
+        +getInstance()
+        +createUser(userId)
+        +findNearbyUsers(userId, maxDist)
+        +swipe(userId, targetId, Swipe)
+        +sendMessage(sender, receiver, content)
+        +getChatRoom(u1, u2)
+        +displayUser(userId)
+        +displayChatRoom(u1, u2)
+    }
+    DatingApp "1" o-- "*" User
+    DatingApp "1" o-- "*" ChatRoom
+    DatingApp --> Matcher
+```
+
+**Core `swipe()` logic:**
+
+1. Fetch `user` and `targetUser`. Abort if either null.
+2. `user->swipe(targetId, action)` records history.
+3. If `action == RIGHT` **and** `targetUser->hasLiked(userId)` → **It's a match!**
+4. Create `ChatRoom` with id `user_under_target`.
+5. Push `chatRoom` into app's chat list.
+6. Notify **both users** via `NotificationService`.
+
+**Core `sendMessage()` logic:**
+
+1. Fetch `chatRoom` by id `senderId + "_" + receiverId`.
+2. If found → `chatRoom->addMessage(sender, content)`.
+3. Notify receiver: `"New message from <sender>"`.
+
+**C++ snippet:**
+
+```cpp
+class DatingApp {
+    vector<User*> users;
+    vector<ChatRoom*> chatRooms;
+    Matcher* matcher;
+    DatingApp() : matcher(MatcherFactory::createMatcher(MatcherType::LOCATION)) {}
+public:
+    static DatingApp& getInstance() { static DatingApp a; return a; }
+
+    User* createUser(const string& uid) {
+        auto* u = new User(uid, new UserProfile(), new UserPreferences());
+        users.push_back(u); return u;
+    }
+    User* getUserById(const string& uid) {
+        for (auto* u : users) if (u->getUserId() == uid) return u;
+        return nullptr;
+    }
+
+    vector<User*> findNearbyUsers(const string& uid, double maxKm) {
+        auto* u = getUserById(uid);
+        if (!u) return {};
+        auto near = LocationService::getInstance().findNearbyUsers(
+            u->getProfile()->location, maxKm, users);
+
+        vector<User*> filtered;
+        for (auto* other : near) {
+            if (other->getUserId() == uid) continue;                       // exclude self
+            if (u->hasInteractedWith(other->getUserId())) continue;        // already swiped
+            if (matcher->calculateMatchScore(u, other) > 0.0)
+                filtered.push_back(other);
+        }
+        return filtered;
+    }
+
+    void swipe(const string& uid, const string& targetId, Swipe action) {
+        auto* u = getUserById(uid);
+        auto* t = getUserById(targetId);
+        if (!u || !t) return;
+
+        u->swipe(targetId, action);
+
+        if (action == Swipe::RIGHT && t->hasLiked(uid)) {
+            string rid = uid + "_" + targetId;
+            ChatRoom* room = new ChatRoom(rid, uid, targetId);
+            chatRooms.push_back(room);
+
+            auto& ns = NotificationService::getInstance();
+            ns.notifyUser(uid,      "You have a new match with " + targetId);
+            ns.notifyUser(targetId, "You have a new match with " + uid);
+        }
+    }
+
+    ChatRoom* getChatRoom(const string& u1, const string& u2) {
+        string id = u1 + "_" + u2;
+        for (auto* r : chatRooms) if (r->chatRoomId == id) return r;
+        return nullptr;
+    }
+
+    void sendMessage(const string& sender, const string& receiver, const string& text) {
+        ChatRoom* r = getChatRoom(sender, receiver);
+        if (!r) { cout << "No chat room found.\n"; return; }
+        r->addMessage(sender, text);
+        NotificationService::getInstance().notifyUser(
+            receiver, "New message from " + sender);
+    }
+
+    void displayChatRoom(const string& u1, const string& u2) {
+        if (auto* r = getChatRoom(u1, u2)) r->displayChat();
+        else cout << "No chat room found.\n";
+    }
+};
+```
+
+---
+
+## 6. Full Clean Architecture Diagram
+
+```
+                     ┌────────────────────────────┐
+                     │        DatingApp           │  ◀── Singleton orchestrator
+                     │  - users: [User*]          │
+                     │  - chatRooms: [ChatRoom*]  │
+                     │  - matcher: Matcher*       │
+                     └─────┬──────────┬───────────┘
+                           │          │
+              ┌────────────▼───┐  ┌───▼───────────┐
+              │      User      │  │  ChatRoom      │
+              │  - profile     │  │  - participants│
+              │  - preferences │  │  - messages    │
+              │  - observer    │  │                │
+              │  - swipeHistory│  └──────┬─────────┘
+              └───┬────────┬───┘         │
+                  │        │             ▼
+        ┌─────────▼──┐ ┌───▼────────┐ ┌────────┐
+        │UserProfile │ │UserPrefs   │ │Message │
+        │ - interests│ │ - interestedIn│        │
+        │ - location │ │ - ageRange │ │        │
+        └───┬────────┘ └────────────┘ └────────┘
+            │
+       ┌────┴────┐
+       ▼         ▼
+   ┌──────┐ ┌─────────┐
+   │Interest│ │Location │ ◀── used by LocationService
+   └──────┘ └─────────┘
+   
+   NotificationService (Observer, Singleton)
+        observes ► UserNotificationObserver (per User)
+   
+   Matcher (abstract)
+     ├── BasicMatcher
+     ├── InterestMatcher  ──► BasicMatcher
+     └── LocationMatcher  ──► InterestMatcher
+   MatcherFactory (Factory)
+   
+   INearByStrategy (Strategy)
+     └── BasicNearByStrategy
+   LocationService (Singleton + Strategy holder)
+```
+
+---
+
+## 7. Design Patterns Summary
+
+| Pattern | Where Used | Why |
+|---|---|---|
+| **Observer** | NotificationService + UserNotificationObserver | Notify specific users on match/message |
+| **Singleton** | NotificationService, LocationService, DatingApp | One global instance |
+| **Strategy** | INearByStrategy / LocationService | Extensible nearby-search algorithms |
+| **Chain of Responsibility** | Matcher → Basic/Interest/Location matchers | Multi-factor score chaining, short-circuit on `0.0` |
+| **Factory** | MatcherFactory, createMatcher(type) | Switch between matcher chain heads |
+| **Composition (Law of Demeter)** | User *owns* Profile, Preferences, Observer; `displayProfile()` delegates | Hide internals, don't let clients touch Profile directly |
+
+---
+
+## 8. Happy Flow Demo (main)
+
+```cpp
+int main() {
+    auto& app = DatingApp::getInstance();
+    auto* user1 = app.createUser("user1");   // Rohan
+    auto* user2 = app.createUser("user2");   // Neha
+
+    // ---- Profile & Preferences for Rohan ----
+    auto* p1 = user1->getProfile();
+    p1->name = "Rohan"; p1->age = 28; p1->gender = Gender::MALE;
+    p1->bio = "I am a software developer.";
+    p1->photos = {"rohan.jpg"};
+    p1->interests = { {"Coding","Programming"},
+                      {"Travelling","Lifestyle"},
+                      {"Music","Entertainment"} };
+
+    auto* pr1 = user1->getPreferences();
+    pr1->interestedIn = { Gender::FEMALE };
+    pr1->minAge = 25; pr1->maxAge = 30;
+    pr1->maxDistance = 10;
+    pr1->interests = { "Coding", "Travelling" };
+
+    // ---- Profile & Preferences for Neha ----
+    auto* p2 = user2->getProfile();
+    p2->name = "Neha"; p2->age = 27; p2->gender = Gender::FEMALE;
+    p2->bio = "Art teacher. Loves painting & travelling.";
+    p2->photos = {"neha.jpg"};
+    p2->interests = { {"Painting","Art"},
+                      {"Travelling","Lifestyle"},
+                      {"Music","Entertainment"} };
+
+    auto* pr2 = user2->getPreferences();
+    pr2->interestedIn = { Gender::MALE };
+    pr2->minAge = 27; pr2->maxAge = 30;
+    pr2->maxDistance = 15;
+    pr2->interests = { "Coding", "Movies" };
+
+    // ---- Locations (close enough to match) ----
+    p1->location = { 12.9716, 77.5946 };
+    p2->location = { 12.9750, 77.5990 };
+
+    // ---- Display profiles ----
+    user1->displayProfile();
+    user2->displayProfile();
+
+    // ---- Find nearby users for Rohan ----
+    auto near = app.findNearbyUsers("user1", 5);
+    cout << "Nearby for user1:\n";
+    for (auto* u : near) cout << "  - " << u->getProfile()->name << "\n";
+
+    // ---- Both swipe right → match ----
+    app.swipe("user1", "user2", Swipe::RIGHT);  // no match yet
+    app.swipe("user2", "user1", Swipe::RIGHT);  // MATCH! + notifications
+
+    // ---- Chat ----
+    app.sendMessage("user1", "user2", "Hi Neha, how are you?");
+    app.sendMessage("user2", "user1", "Hi Rohan, I'm good. How about you?");
+
+    app.displayChatRoom("user1", "user2");
+    return 0;
+}
+```
+
+**Expected output (abridged):**
+
+```
+Rohan | 28 | MALE
+Bio: I am a software developer.
+...
+Neha | 27 | FEMALE
+Bio: Art teacher. Loves painting & travelling.
+...
+Nearby for user1:
+  - Neha
+[NOTIFY user2] You have a new match with user1
+[NOTIFY user1] You have a new match with user2
+[NOTIFY user2] New message from user1
+[NOTIFY user1] New message from user2
+=== Chat user1_user2 ===
+[2025-01-01 10:00:00] user1: Hi Neha, how are you?
+[2025-01-01 10:00:01] user2: Hi Rohan, I'm good. How about you?
+```
+
+---
+
+## 9. Key Takeaways
+
+1. **Object-heavy problems → Top-Down approach** helps avoid missing classes and confusion about integration.
+2. **Observer pattern** is the canonical solution for user-specific notifications — but *tweak it* (map-keyed observers + `notifyUser`) when you don't need `notifyAll`.
+3. **Strategy** for extensible nearby search; **Chain of Responsibility** for multi-factor matching scoring.
+4. **Matchers chain recursively** (`Location → Interest → Basic`), each adding its own score — an excellent real-world matching design.
+5. **Use composition** (diamond `◆`) between User ↔ Profile/Preferences/Observer — not association — because they can't exist independently.
+6. **Law of Demeter**: expose `user->displayProfile()` instead of letting clients poke at `user->profile`.
+7. **Chat room id = `senderId_receiverId`** is a clean convention; supports groups by storing a `participants` vector instead of two fields.
+8. **Factory** for matchers lets you decide at runtime which head of the chain to use.
+9. **Notifications** are triggered at exactly two points: **(a)** after a mutual swipe match, **(b)** after `sendMessage`.
+
+---
+
+## 28. Builder Design Pattern | Classic Builder | Step Builder | UML + Code (1:49:03)
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
