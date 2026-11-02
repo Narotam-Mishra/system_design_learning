@@ -17648,4 +17648,576 @@ Nearby for user1:
 
 ## 28. Builder Design Pattern | Classic Builder | Step Builder | UML + Code (1:49:03)
 
+## 1. Why the Builder Pattern?
+
+The Builder pattern is described as **the most used design pattern in real-world applications** when it comes to object creation. In industry, developers prefer the Builder pattern over the `new` keyword for complex objects. It is especially impressive to discuss in interviews.
+
+The core idea: **Separate the construction of a complex object from its representation** so the same construction process can create different representations.
+
+---
+
+## 2. Real-Life Example: HTTP Request
+
+An `HTTPRequest` object contains many fields:
+
+| Field | Type | Required? |
+|-------|------|-----------|
+| URL | String | Yes |
+| Method | String (GET/POST/PUT/DELETE/PATCH) | Yes |
+| Headers | Map<String, String> | Optional |
+| Query Params | Map<String, String> | Optional |
+| Body | String (JSON) | Optional |
+| Timeout | int (seconds, default 60) | Optional |
+
+The object needs an `execute()` method that fires the HTTP call from client to server.
+
+---
+
+## 3. Four Problems Without Builder
+
+### Problem 1: Constructor Telescoping (Overloading)
+
+If you only use constructors, you must create many combinations:
+
+```java
+public class HTTPRequest {
+    private String url;
+    private String method;
+    private Map<String, String> headers;
+    private Map<String, String> queryParams;
+    private String body;
+    private int timeout;
+
+    // Too many constructors needed!
+    public HTTPRequest(String url) { ... }
+    public HTTPRequest(String url, String method) { ... }
+    public HTTPRequest(String url, String method, Map<String, String> headers) { ... }
+    public HTTPRequest(String url, String method, Map<String, String> headers,
+                       Map<String, String> queryParams) { ... }
+    public HTTPRequest(String url, String method, Map<String, String> headers,
+                       Map<String, String> queryParams, String body) { ... }
+    public HTTPRequest(String url, String method, Map<String, String> headers,
+                       Map<String, String> queryParams, String body, int timeout) { ... }
+}
+```
+
+This is called **Constructor Telescoping** — an explosion of constructor combinations.
+
+### Problem 2: Immutability Broken
+
+Using setters makes the object **mutable**:
+
+```java
+request.setUrl("new-url");     // Object changes after creation
+request.setMethod("DELETE");   // Bad if immutability is required
+```
+
+If an object must be immutable once created (e.g., a request that has already been sent), setters cannot be used — but then you're back to constructor telescoping.
+
+### Problem 3: Inconsistent State
+
+With setters, the compiler cannot know whether all required fields have been set:
+
+```java
+HTTPRequest req = new HTTPRequest("https://api.example.com", "POST", headers);
+req.setBody("{...}");
+req.setTimeout(30);
+req.execute();   // OK
+```
+
+But nothing stops this:
+
+```java
+HTTPRequest req = new HTTPRequest("https://api.example.com", "GET", headers);
+req.execute();   // Compiles fine — but Body/Timeout may be required!
+```
+
+This produces a **runtime error**, not a compile-time error. Runtime errors are the worst kind.
+
+### Problem 4: Scattered Validations
+
+Because the object can be in an inconsistent state at any time, validation logic gets scattered everywhere the object is used:
+
+```java
+if (request.getUrl() == null) throw new Error("URL missing");
+if (request.getBody() == null) throw new Error("Body missing");
+// ...repeated at every call site
+```
+
+**Note:** These four problems don't always all appear together; some contradict each other. Removing setters fixes immutability but forces constructor overloading. Overloading fixes telescoping but causes inconsistent-state risk. The Builder pattern solves all four simultaneously.
+
+---
+
+## 4. Simple Builder — Solution
+
+### Key Changes to the Target Class
+
+1. **Make the constructor private** — forces clients to use the builder.
+2. **Declare the builder as a friend** (C++) or use package-level access (Java) so the builder can access private members.
+3. Keep the `execute()` method as-is.
+
+```java
+public class HTTPRequest {
+    private String url;
+    private String method;
+    private Map<String, String> headers;
+    private Map<String, String> queryParams;
+    private String body;
+    private int timeout;
+
+    private HTTPRequest() { }   // Private constructor
+
+    // Friend class in C++; in Java, package-private access suffices
+    friend class HTTPRequestBuilder;
+
+    public void execute() {
+        System.out.println("Executing " + method + " request");
+        if (queryParams != null) System.out.println("Query Params: " + queryParams);
+        if (headers != null) System.out.println("Headers: " + headers);
+        if (body != null) System.out.println("Body: " + body);
+        System.out.println("Timeout: " + timeout);
+        System.out.println("Request executed successfully");
+    }
+}
+```
+
+### The Builder Class
+
+```java
+public class HTTPRequestBuilder {
+    private HTTPRequest request;   // Reference to the target
+
+    public HTTPRequestBuilder() {
+        this.request = new HTTPRequest();
+    }
+
+    // Intermediate methods — return `this` for chaining
+    public HTTPRequestBuilder withUrl(String url) {
+        request.url = url;
+        return this;
+    }
+
+    public HTTPRequestBuilder withMethod(String method) {
+        request.method = method;
+        return this;
+    }
+
+    public HTTPRequestBuilder withHeader(String key, String value) {
+        if (request.headers == null) request.headers = new HashMap<>();
+        request.headers.put(key, value);
+        return this;
+    }
+
+    public HTTPRequestBuilder withQueryParam(String key, String value) {
+        if (request.queryParams == null) request.queryParams = new HashMap<>();
+        request.queryParams.put(key, value);
+        return this;
+    }
+
+    public HTTPRequestBuilder withBody(String body) {
+        request.body = body;
+        return this;
+    }
+
+    public HTTPRequestBuilder withTimeout(int timeout) {
+        request.timeout = timeout;
+        return this;
+    }
+
+    // Terminating method — returns the actual target object
+    public HTTPRequest build() {
+        // Centralized validation
+        if (request.url == null || request.url.isEmpty()) {
+            throw new RuntimeException("URL is empty");
+        }
+        if (request.method == null || request.method.isEmpty()) {
+            throw new RuntimeException("Method is empty");
+        }
+        if (request.body == null || request.body.isEmpty()) {
+            throw new RuntimeException("Body is empty");
+        }
+        return request;
+    }
+}
+```
+
+### Client Usage
+
+```java
+public class Main {
+    public static void main(String[] args) {
+        HTTPRequest request = new HTTPRequestBuilder()
+            .withUrl("https://www.example.com/target")
+            .withMethod("POST")
+            .withHeader("Content-Type", "application/json")
+            .withHeader("Accept", "application/json")
+            .withQueryParam("page", "1")
+            .withBody("{ \"name\": \"John\" }")
+            .withTimeout(60)
+            .build();
+
+        request.execute();
+    }
+}
+```
+
+### Method Terminology
+
+- **Intermediate methods** (`withUrl`, `withMethod`, `withHeader`, etc.) — return `this` (the builder) to enable chaining.
+- **Terminating method** (`build()`) — returns the final target object and terminates the chain.
+
+### Simple Builder UML
+
+```
+┌─────────────┐         ┌──────────────────┐         ┌───────────────┐
+│   Client    │────────>│ HTTPRequestBuilder│────────>│  HTTPRequest  │
+└─────────────┘         └──────────────────┘         └───────────────┘
+                              │  builds                   │
+                              │  (private ctor)           │ execute()
+                              └───────────────────────────┘
+```
+
+- Client holds a reference to the Builder.
+- Builder holds a reference to the Target.
+- Client never directly instantiates Target (private constructor).
+
+### Benefits Achieved
+
+| Problem | How Builder solves it |
+|---------|----------------------|
+| Constructor telescoping | One builder, chained methods — no overloaded constructors |
+| Immutability | Once `build()` is called, no setters exist; object cannot be mutated |
+| Inconsistent state | Client can't call `execute()` without first calling `build()`, which returns the typed object |
+| Scattered validations | All validation centralized in `build()` |
+
+---
+
+## 5. Builder with Director
+
+### Motivation
+
+Clients often need the **same default configurations** repeatedly:
+
+- A simple GET request with a default `Accept: application/json` header.
+- A JSON POST request with `Content-Type: application/json` and `Accept: application/json`.
+
+Instead of the client re-specifying these every time, a **Director** encapsulates reusable build templates.
+
+### Director Implementation
+
+```java
+public class HTTPRequestDirector {
+    // Static methods — no need to instantiate the Director
+    public static HTTPRequest createGetRequest(String url) {
+        return new HTTPRequestBuilder()
+            .withUrl(url)
+            .withMethod("GET")
+            .withHeader("Accept", "application/json")
+            .build();
+    }
+
+    public static HTTPRequest createJsonPostRequest(String url, String jsonBody) {
+        return new HTTPRequestBuilder()
+            .withUrl(url)
+            .withMethod("POST")
+            .withHeader("Content-Type", "application/json")
+            .withHeader("Accept", "application/json")
+            .withBody(jsonBody)
+            .build();
+    }
+}
+```
+
+### Client Usage
+
+```java
+HTTPRequest getReq  = HTTPRequestDirector.createGetRequest("https://api.example.com/users");
+HTTPRequest postReq = HTTPRequestDirector.createJsonPostRequest(
+    "https://api.example.com/users", "{ \"name\": \"Alice\" }");
+
+getReq.execute();
+postReq.execute();
+```
+
+### Director UML
+
+```
+┌──────────┐       ┌──────────────────┐       1..* ┌──────────────────┐       ┌──────────────┐
+│  Client  │──────>│  HTTPRequestDirector│─────────>│ HTTPRequestBuilder│──────>│ HTTPRequest  │
+└──────────┘       └──────────────────┘           └──────────────────┘       └──────────────┘
+     │                      │
+     └──────────────────────┴────── also may talk to Builder directly
+```
+
+- Client → Director (for templates)
+- Client → Builder (for custom builds)
+- Director → Builder (1-to-many)
+- Builder → Target
+
+---
+
+## 6. Step Builder
+
+### Motivation
+
+In the simple builder, the client can call `withUrl`, `withMethod`, `withBody`, etc. **in any order** and **skip required fields**. For some objects, the construction must follow a strict order:
+
+**Pizza example:** crust → sauce → toppings → cheese → bake.
+
+**House example:** foundation → walls → roof → doors → windows. You cannot put a roof before the foundation.
+
+The Step Builder enforces:
+1. **Step-by-step creation** — a strict order.
+2. **Compile-time validation** — required fields must be supplied; optional fields can be supplied in any order (or skipped).
+
+### Core Concept: Multiple Inheritance (Interfaces)
+
+The Step Builder uses **multiple inheritance** — the only design pattern that does so. In Java, interfaces are used; in C++, multiple inheritance of abstract classes.
+
+```
+        ┌────────────┐   ┌────────────┐   ┌────────────┐   ┌──────────────┐
+        │ URLStep    │   │ MethodStep │   │ HeaderStep │   │ OptionalStep │
+        └────────────┘   └────────────┘   └────────────┘   └──────────────┘
+              ▲               ▲               ▲               ▲
+              └───────────────┴───────────────┴───────────────┘
+                                      │
+                              ┌───────┴────────┐
+                              │ StepBuilder    │  (inherits all four)
+                              └────────────────┘
+                                      │
+                              ┌───────┴────────┐
+                              │ HTTPRequest    │
+                              └────────────────┘
+```
+
+### Step Interfaces
+
+```java
+// Required step 1
+public interface URLStep {
+    MethodStep withUrl(String url);
+}
+
+// Required step 2
+public interface MethodStep {
+    HeaderStep withMethod(String method);
+}
+
+// Required step 3
+public interface HeaderStep {
+    OptionalStep withHeader(String key, String value);
+}
+
+// Optional steps + terminal
+public interface OptionalStep {
+    OptionalStep withBody(String body);
+    OptionalStep withTimeout(int timeout);
+    HTTPRequest build();          // terminal
+}
+```
+
+### Step Builder Implementation
+
+```java
+public class HTTPRequestStepBuilder implements
+        URLStep, MethodStep, HeaderStep, OptionalStep {
+
+    private HTTPRequest request = new HTTPRequest();
+
+    // Entry point
+    public static URLStep getBuilder() {
+        return new HTTPRequestStepBuilder();
+    }
+
+    @Override
+    public MethodStep withUrl(String url) {
+        request.url = url;
+        return this;   // this can be returned as MethodStep
+    }
+
+    @Override
+    public HeaderStep withMethod(String method) {
+        request.method = method;
+        return this;
+    }
+
+    @Override
+    public OptionalStep withHeader(String key, String value) {
+        if (request.headers == null) request.headers = new HashMap<>();
+        request.headers.put(key, value);
+        return this;
+    }
+
+    @Override
+    public OptionalStep withBody(String body) {
+        request.body = body;
+        return this;
+    }
+
+    @Override
+    public OptionalStep withTimeout(int timeout) {
+        request.timeout = timeout;
+        return this;
+    }
+
+    @Override
+    public HTTPRequest build() {
+        // Optional extra validation here
+        return request;
+    }
+}
+```
+
+### Client Usage
+
+```java
+HTTPRequest request = HTTPRequestStepBuilder.getBuilder()
+    .withUrl("https://api.example.com")
+    .withMethod("POST")
+    .withHeader("Content-Type", "application/json")     // required step
+    .withBody("{ \"name\": \"Bob\" }")                  // optional
+    .withTimeout(60)                                    // optional
+    .build();
+
+request.execute();
+```
+
+### Compile-Time Enforcement
+
+```java
+// ✅ Valid
+StepBuilder.getBuilder()
+    .withUrl("...")            // returns MethodStep
+    .withMethod("GET")         // returns HeaderStep
+    .withHeader("Accept", "application/json")  // returns OptionalStep
+    .withBody("...")           // returns OptionalStep
+    .build();                  // returns HTTPRequest
+
+// ❌ Compile error — withBody does not exist on HeaderStep
+StepBuilder.getBuilder()
+    .withUrl("...")            // MethodStep
+    .withMethod("GET")         // HeaderStep
+    .withBody("...")           // ❌ HeaderStep has no withBody
+```
+
+The IDE auto-completion also only offers the next valid method at each step.
+
+### Step Builder UML
+
+```
+┌──────────┐      ┌──────────────────┐
+│  Client  │─────>│  StepBuilder     │
+└──────────┘      └──────────────────┘
+                          │ inherits
+        ┌─────────────────┼─────────────────┐
+        ▼                 ▼                 ▼
+   ┌─────────┐       ┌──────────┐      ┌────────────┐
+   │ URLStep │──────>│MethodStep│─────>│ HeaderStep │──┐
+   └─────────┘       └──────────┘      └────────────┘  │
+                                                       ▼
+                                              ┌────────────────┐
+                                              │ OptionalStep   │
+                                              └────────────────┘
+                                                       │ build()
+                                                       ▼
+                                              ┌────────────────┐
+                                              │  HTTPRequest   │
+                                              └────────────────┘
+```
+
+Each step interface references the next step in its return type, creating a **chain of interfaces**. The concrete builder implements all of them; each method returns `this`, but the **static return type** is the next interface — so only the next valid method is visible to the client.
+
+---
+
+## 7. Comparison of the Three Builders
+
+| Feature | Simple Builder | Builder + Director | Step Builder |
+|---------|---------------|-------------------|--------------|
+| Enforces order | ❌ No | ❌ No | ✅ Yes (required steps) |
+| Compile-time validation of required fields | ❌ Runtime only | ❌ Runtime only | ✅ Yes |
+| Reusable templates | ❌ | ✅ | ❌ |
+| Optional fields in any order | ✅ | ✅ | ✅ (after required) |
+| Uses multiple inheritance | ❌ | ❌ | ✅ |
+| Complexity | Low | Low | Medium |
+
+---
+
+## 8. Standard Definition
+
+> **The Builder pattern separates the construction of a complex object from its representation** so that the same construction process can create different representations.
+
+In practice:
+- **Construction** happens inside the builder class.
+- **Representation** lives in the target class.
+- The client only interacts with the builder (and optionally a director).
+
+### Key Points (from the lecture's summary slide)
+
+1. Builder solves **constructor telescoping/overloading**.
+2. Builder provides **immutability** — once `build()` is called, the object cannot be changed.
+3. Builder provides **consistent state** — the object can only be obtained via `build()`.
+4. Builder **centralizes validations** in the `build()` method.
+5. **Intermediate methods** return `this` (the builder) for chaining.
+6. The **terminating method** (`build()`) returns the target object.
+7. **Director** provides reusable pre-built templates.
+8. **Step Builder** enforces a strict construction order via multiple inheritance / interfaces.
+9. Builder is the **most-used creational pattern** in industry — prefer it over `new` for complex objects.
+
+---
+
+## 9. Complete Client Flow — Simple Builder
+
+```java
+public class Main {
+    public static void main(String[] args) {
+        // Simple builder
+        HTTPRequest request = new HTTPRequestBuilder()
+            .withUrl("https://www.example.com/target")
+            .withMethod("POST")
+            .withHeader("Content-Type", "application/json")
+            .withHeader("Accept", "application/json")
+            .withQueryParam("page", "1")
+            .withBody("{ \"name\": \"John\" }")
+            .withTimeout(60)
+            .build();
+
+        request.execute();
+
+        // Director (pre-built template)
+        HTTPRequest getRequest =
+            HTTPRequestDirector.createGetRequest("https://api.example.com/users");
+        getRequest.execute();
+
+        // Step builder (strict order)
+        HTTPRequest stepRequest = HTTPRequestStepBuilder.getBuilder()
+            .withUrl("https://api.example.com/orders")
+            .withMethod("POST")
+            .withHeader("Content-Type", "application/json")
+            .withBody("{ \"item\": \"book\" }")
+            .withTimeout(30)
+            .build();
+        stepRequest.execute();
+    }
+}
+```
+
+---
+
+## 10. Summary of Benefits
+
+| Without Builder | With Builder |
+|-----------------|--------------|
+| Many overloaded constructors | Single builder with chained methods |
+| Setters make object mutable | No setters; object immutable after build |
+| Runtime error if fields missing | Compile-time enforcement (Step Builder) or centralized validation |
+| Validation scattered across call sites | Validation centralized in `build()` |
+| Readability poor | Fluent, readable, self-documenting code |
+| Violates Open/Closed (add field → add constructor) | Adding a field only requires adding a `withX()` method |
+
+The Builder pattern is described as an **extremely important and interesting pattern** that you will use in real-life projects — particularly for HTTP requests, database queries, document construction, and any object with many optional parameters.
+
+---
+
+## 29. Iterator Design Pattern | UML + Code (40:08)
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
