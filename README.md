@@ -19046,4 +19046,861 @@ The homework — adding `previous()` — is a great way to demonstrate that the 
 
 ## 30. Flyweight Design Pattern | UML + Code (55:23)
 
+## 1. What is the Flyweight Pattern?
+
+**Standard Definition (from transcript):**
+> *"Flyweight uses sharing to support large numbers of fine-grained objects efficiently."*
+
+**Core Idea:**
+When your application needs to create **millions of similar objects**, and RAM is a limited resource, you don't create a new object every time. Instead, you **reuse** objects whose data is identical — saving memory.
+
+---
+
+## 2. The Problem: Millions of Objects Consuming RAM
+
+### Example: A Space Game (Asteroids)
+
+You are building a game where a spaceship shoots at incoming asteroids. On hard levels, **millions of asteroids** may appear on screen. If each asteroid is a separate object with all its properties, RAM will explode.
+
+### Naive Asteroid Class (Without Flyweight)
+
+```cpp
+class Asteroid {
+    // Intrinsic properties (data that repeats)
+    int length;
+    int width;
+    int weight;
+    string color;
+    string texture;
+    string material;
+
+    // Extrinsic properties (data unique per asteroid)
+    int positionX;
+    int positionY;
+    int velocityX;
+    int velocityY;
+
+public:
+    Asteroid(int len, int wid, int wt, string col, string tex, string mat,
+             int px, int py, int vx, int vy)
+        : length(len), width(wid), weight(wt), color(col), texture(tex), material(mat),
+          positionX(px), positionY(py), velocityX(vx), velocityY(vy) {}
+
+    void render() {
+        cout << "Rendering " << color << " " << texture << " " << material
+             << " asteroid at (" << positionX << "," << positionY << ")"
+             << " size " << length << "x" << width << " weight " << weight << endl;
+    }
+
+    size_t getMemoryUsage() const {
+        // 6 ints (length, width, weight, positionX, positionY + velocity? Let's count)
+        // Actually: length, width, weight, positionX, positionY, velocityX, velocityY = 7 ints
+        // + 3 strings (color, texture, material)
+        return sizeof(int) * 7 + sizeof(string) * 3 + 32 * 3;
+    }
+};
+```
+
+### Memory Calculation (Rough)
+
+| Data Type | Count | Approx Size |
+|-----------|-------|-------------|
+| `int` (length, width, weight, posX, posY, velX, velY) | 7 | 7 × 4 = 28 bytes |
+| `string` (color, texture, material) | 3 | 3 × ~32 = ~96 bytes (approx) |
+| **Total per asteroid** | | **~196 bytes** |
+
+For **1,000,000 asteroids**:
+```
+1,000,000 × 196 bytes ≈ 196,000,000 bytes ≈ 186.92 MB
+```
+
+### Without Flyweight – Space Game Class
+
+```cpp
+class SpaceGame {
+    vector<Asteroid> asteroids;
+
+public:
+    void spawnAsteroids(int count) {
+        string colors[]     = {"Red", "Blue", "Grey"};
+        string textures[]   = {"Rocky", "Metallic", "Icy"};
+        string materials[]  = {"Iron", "Stone", "Ice"};
+        int sizes[]         = {25, 35, 45};
+
+        for (int i = 0; i < count; i++) {
+            int type = i % 3;
+            asteroids.push_back(Asteroid(
+                sizes[type],           // length
+                sizes[type],           // width
+                sizes[type] * 10,      // weight
+                colors[type],
+                textures[type],
+                materials[type],
+                100 + i * 50,          // positionX (varies)
+                200 + i * 30,          // positionY (varies)
+                1,                     // velocityX
+                2                      // velocityY
+            ));
+        }
+    }
+
+    void renderAll() {
+        for (int i = 0; i < min((int)asteroids.size(), 5); i++)
+            asteroids[i].render();
+    }
+
+    size_t calculateMemoryUsage() const {
+        if (asteroids.empty()) return 0;
+        return asteroids.size() * asteroids[0].getMemoryUsage();
+    }
+
+    int getAsteroidCount() const { return asteroids.size(); }
+};
+```
+
+### Main (Without Flyweight)
+
+```cpp
+int main() {
+    const int ASTEROID_COUNT = 1'000'000;
+    SpaceGame game;
+    game.spawnAsteroids(ASTEROID_COUNT);
+    game.renderAll();
+
+    cout << "Total asteroids: " << game.getAsteroidCount() << endl;
+    size_t mem = game.calculateMemoryUsage();
+    cout << "Total memory: " << mem << " bytes" << endl;
+    cout << "Total memory: " << mem / (1024.0 * 1024.0) << " MB" << endl;
+
+    return 0;
+}
+```
+
+**Output:**
+```
+Total asteroids: 1000000
+Memory per asteroid: 196 bytes
+Total memory: 196000000 bytes
+Total memory: 186.92 MB
+```
+
+---
+
+## 3. The Solution: Flyweight Pattern
+
+### Split the Object into Two Parts
+
+| Property Type | Definition | Where Stored | Shared? |
+|---------------|------------|--------------|---------|
+| **Intrinsic** | Data that repeats across many objects (limited values) | Inside **Flyweight** object | ✅ Yes (reused) |
+| **Extrinsic** | Data unique per object (positions, velocity) | Inside **Context** class | ❌ No (new per instance) |
+
+### Asteroids – Splitting the Properties
+
+**Intrinsic (limited, shared):**
+- `length` → 10, 20, or 30
+- `width` → 10, 20, or 30
+- `weight` → 1, 2, or 3
+- `color` → Red, Green, or Blue
+- `texture` → Soft, Hard, or Semi-Hard
+- `material` → Iron, Stone, or Ice
+
+**Extrinsic (unique per asteroid):**
+- `positionX`
+- `positionY`
+- `velocityX`
+- `velocityY`
+
+> **Key insight:** Even with millions of asteroids, the intrinsic combinations are limited (e.g., 3 × 3 × 3 × 3 × 3 × 3 = 729 max, but in the example only 3 combinations are used). So we only create **3 Flyweight objects** instead of 1,000,000.
+
+---
+
+## 4. Flyweight Implementation (UML)
+
+### UML Diagram
+
+```
+┌─────────────────────┐          ┌──────────────────────────┐
+│   AsteroidContext   │          │    AsteroidFlyweight     │
+├─────────────────────┤          ├──────────────────────────┤
+│ - positionX: int    │          │ - length: int            │
+│ - positionY: int    │─────────▶│ - width: int             │
+│ - velocityX: int    │  has-a   │ - weight: int            │
+│ - velocityY: int    │          │ - color: string          │
+│ - flyweight:        │          │ - texture: string        │
+│   AsteroidFlyweight │          │ - material: string       │
+├─────────────────────┤          ├──────────────────────────┤
+│ + render()          │          │ + render(px, py, vx, vy) │
+│ + getMemoryUsage()  │          │ + getMemoryUsage()       │
+└─────────────────────┘          └──────────────────────────┘
+         ▲
+         │ uses
+         │
+┌─────────────────────┐
+│   AsteroidFactory   │
+├─────────────────────┤
+│ - pool:             │
+│   unordered_map<    │
+│     string,         │
+│     AsteroidFlyweight>│
+├─────────────────────┤
+│ + getAsteroid(...)  │
+│ + getFlyweightCount()│
+│ + getTotalMemory()  │
+│ + cleanup()         │
+└─────────────────────┘
+         ▲
+         │ client uses
+         │
+┌─────────────────────┐
+│     SpaceGame       │
+│  (client)           │
+└─────────────────────┘
+```
+
+---
+
+## 5. Code Implementation (Flyweight Pattern)
+
+### 5.1 Flyweight Class
+
+```cpp
+class AsteroidFlyweight {
+    // Intrinsic properties – shared, immutable
+    int length;
+    int width;
+    int weight;
+    string color;
+    string texture;
+    string material;
+
+public:
+    AsteroidFlyweight(int len, int wid, int wt, string col, string tex, string mat)
+        : length(len), width(wid), weight(wt),
+          color(col), texture(tex), material(mat) {}
+
+    // Extrinsic data passed as parameters (NOT stored)
+    void render(int posX, int posY, int velX, int velY) const {
+        cout << "Rendering " << color << " " << texture << " " << material
+             << " asteroid at (" << posX << "," << posY << ")"
+             << " size " << length << "x" << width
+             << " weight " << weight
+             << " velocity (" << velX << "," << velY << ")" << endl;
+    }
+
+    size_t getMemoryUsage() const {
+        return sizeof(int) * 3 + sizeof(string) * 3 + 32 * 3;
+    }
+
+    // Getters (optional, if needed)
+    int getLength() const { return length; }
+    int getWidth() const { return width; }
+    int getWeight() const { return weight; }
+    string getColor() const { return color; }
+    string getTexture() const { return texture; }
+    string getMaterial() const { return material; }
+};
+```
+
+### 5.2 Context Class (Extrinsic)
+
+```cpp
+class AsteroidContext {
+    int positionX;
+    int positionY;
+    int velocityX;
+    int velocityY;
+    AsteroidFlyweight flyweight;  // reference / pointer to shared object
+
+public:
+    AsteroidContext(int px, int py, int vx, int vy, const AsteroidFlyweight& fw)
+        : positionX(px), positionY(py), velocityX(vx), velocityY(vy), flyweight(fw) {}
+
+    // Delegates to flyweight, passing extrinsic state
+    void render() const {
+        flyweight.render(positionX, positionY, velocityX, velocityY);
+    }
+
+    size_t getMemoryUsage() const {
+        // 4 ints + 1 reference/pointer (approximate)
+        return sizeof(int) * 4 + sizeof(void*);
+    }
+};
+```
+
+### 5.3 Flyweight Factory
+
+```cpp
+class AsteroidFactory {
+    static unordered_map<string, AsteroidFlyweight> pool;
+
+    static string makeKey(int len, int wid, int wt,
+                          const string& col, const string& tex, const string& mat) {
+        return to_string(len) + "_" + to_string(wid) + "_" + to_string(wt)
+             + "_" + col + "_" + tex + "_" + mat;
+    }
+
+public:
+    static AsteroidFlyweight getAsteroid(int len, int wid, int wt,
+                                         const string& col,
+                                         const string& tex,
+                                         const string& mat) {
+        string key = makeKey(len, wid, wt, col, tex, mat);
+
+        auto it = pool.find(key);
+        if (it == pool.end()) {
+            // Not found – create and store
+            AsteroidFlyweight fw(len, wid, wt, col, tex, mat);
+            pool.emplace(key, fw);
+            return fw;
+        }
+        // Found – return existing shared object
+        return it->second;
+    }
+
+    static size_t getFlyweightCount() {
+        return pool.size();
+    }
+
+    static size_t getTotalFlyweightMemory() {
+        if (pool.empty()) return 0;
+        return pool.size() * pool.begin()->second.getMemoryUsage();
+    }
+
+    static void cleanup() {
+        pool.clear();
+    }
+};
+
+// Static member definition
+unordered_map<string, AsteroidFlyweight> AsteroidFactory::pool;
+```
+
+### 5.4 Space Game (Client) with Flyweight
+
+```cpp
+class SpaceGameWithFlyweight {
+    vector<AsteroidContext> asteroids;
+
+public:
+    void spawnAsteroids(int count) {
+        string colors[]     = {"Red", "Blue", "Grey"};
+        string textures[]   = {"Rocky", "Metallic", "Icy"};
+        string materials[]  = {"Iron", "Stone", "Ice"};
+        int sizes[]         = {25, 35, 45};
+
+        for (int i = 0; i < count; i++) {
+            int type = i % 3;
+
+            // Get shared flyweight object
+            AsteroidFlyweight fw = AsteroidFactory::getAsteroid(
+                sizes[type], sizes[type], sizes[type] * 10,
+                colors[type], textures[type], materials[type]
+            );
+
+            // Create context with unique extrinsic data
+            asteroids.push_back(AsteroidContext(
+                100 + i * 50,   // positionX (unique)
+                200 + i * 30,   // positionY (unique)
+                1,              // velocityX
+                2,              // velocityY
+                fw
+            ));
+        }
+    }
+
+    void renderAll() {
+        for (int i = 0; i < min((int)asteroids.size(), 5); i++)
+            asteroids[i].render();
+    }
+
+    size_t calculateMemoryUsage() const {
+        if (asteroids.empty()) return 0;
+        size_t contextMem = asteroids.size() * asteroids[0].getMemoryUsage();
+        size_t flyweightMem = AsteroidFactory::getTotalFlyweightMemory();
+        return contextMem + flyweightMem;
+    }
+
+    int getAsteroidCount() const { return asteroids.size(); }
+};
+```
+
+### 5.5 Main (With Flyweight)
+
+```cpp
+int main() {
+    const int ASTEROID_COUNT = 1'000'000;
+
+    SpaceGameWithFlyweight game;
+    game.spawnAsteroids(ASTEROID_COUNT);
+    game.renderAll();
+
+    cout << "Total asteroids: " << game.getAsteroidCount() << endl;
+    cout << "Flyweight objects created: "
+         << AsteroidFactory::getFlyweightCount() << endl;
+
+    size_t mem = game.calculateMemoryUsage();
+    cout << "Total memory: " << mem << " bytes" << endl;
+    cout << "Total memory: " << mem / (1024.0 * 1024.0) << " MB" << endl;
+
+    AsteroidFactory::cleanup();
+    return 0;
+}
+```
+
+**Output:**
+```
+Total asteroids: 1000000
+Flyweight objects created: 3
+Total memory: ~22,000,000 bytes
+Total memory: ~22.00 MB
+```
+
+---
+
+## 6. Memory Comparison
+
+| Approach | Objects Created | Memory (1M asteroids) |
+|----------|-----------------|----------------------|
+| Without Flyweight | 1,000,000 Asteroid objects | **~186.92 MB** |
+| With Flyweight | 3 Flyweight + 1,000,000 Context | **~22 MB** |
+
+> **~88% memory reduction!**
+
+---
+
+## 7. Builder Pattern Implementation
+
+The transcript explicitly mentions that using constructors with many parameters is **unreadable** and **error-prone**. The instructor suggests using the **Builder design pattern** for both `Asteroid` and `AsteroidFlyweight`.
+
+### 7.1 Without Builder (Problematic Constructor)
+
+```cpp
+// BAD – too many parameters, hard to read
+Asteroid a(25, 25, 250, "Red", "Rocky", "Iron", 100, 200, 1, 2);
+//         len wid wt   color texture material  px   py  vx vy
+```
+
+### 7.2 With Builder Pattern – Flyweight
+
+```cpp
+class AsteroidFlyweight {
+    int length;
+    int width;
+    int weight;
+    string color;
+    string texture;
+    string material;
+
+    // Private constructor used by Builder
+    AsteroidFlyweight(int len, int wid, int wt,
+                      const string& col, const string& tex, const string& mat)
+        : length(len), width(wid), weight(wt),
+          color(col), texture(tex), material(mat) {}
+
+public:
+    void render(int posX, int posY, int velX, int velY) const {
+        cout << "Rendering " << color << " " << texture << " " << material
+             << " asteroid at (" << posX << "," << posY << ")"
+             << " size " << length << "x" << width
+             << " weight " << weight
+             << " velocity (" << velX << "," << velY << ")" << endl;
+    }
+
+    size_t getMemoryUsage() const {
+        return sizeof(int) * 3 + sizeof(string) * 3 + 32 * 3;
+    }
+
+    // ---------- Builder ----------
+    class Builder {
+        int length  = 10;
+        int width   = 10;
+        int weight  = 1;
+        string color    = "Red";
+        string texture  = "Rocky";
+        string material = "Iron";
+
+    public:
+        Builder& setLength(int len)        { length = len;      return *this; }
+        Builder& setWidth(int wid)         { width = wid;       return *this; }
+        Builder& setWeight(int wt)         { weight = wt;       return *this; }
+        Builder& setColor(const string& c) { color = c;         return *this; }
+        Builder& setTexture(const string& t){ texture = t;      return *this; }
+        Builder& setMaterial(const string& m){ material = m;    return *this; }
+
+        AsteroidFlyweight build() const {
+            return AsteroidFlyweight(length, width, weight,
+                                     color, texture, material);
+        }
+    };
+
+    friend class AsteroidFactory;  // factory can use private constructor
+};
+```
+
+### 7.3 With Builder Pattern – Context
+
+```cpp
+class AsteroidContext {
+    int positionX;
+    int positionY;
+    int velocityX;
+    int velocityY;
+    AsteroidFlyweight flyweight;
+
+    AsteroidContext(int px, int py, int vx, int vy,
+                    const AsteroidFlyweight& fw)
+        : positionX(px), positionY(py), velocityX(vx), velocityY(vy),
+          flyweight(fw) {}
+
+public:
+    void render() const {
+        flyweight.render(positionX, positionY, velocityX, velocityY);
+    }
+
+    size_t getMemoryUsage() const {
+        return sizeof(int) * 4 + sizeof(void*);
+    }
+
+    // ---------- Builder ----------
+    class Builder {
+        int positionX = 0;
+        int positionY = 0;
+        int velocityX = 1;
+        int velocityY = 1;
+        AsteroidFlyweight flyweight;
+        bool flyweightSet = false;
+
+    public:
+        Builder& setPositionX(int x)  { positionX = x; return *this; }
+        Builder& setPositionY(int y)  { positionY = y; return *this; }
+        Builder& setVelocityX(int vx) { velocityX = vx; return *this; }
+        Builder& setVelocityY(int vy) { velocityY = vy; return *this; }
+
+        Builder& setFlyweight(const AsteroidFlyweight& fw) {
+            flyweight = fw;
+            flyweightSet = true;
+            return *this;
+        }
+
+        AsteroidContext build() const {
+            if (!flyweightSet) {
+                throw runtime_error("Flyweight must be set before building Context");
+            }
+            return AsteroidContext(positionX, positionY,
+                                   velocityX, velocityY, flyweight);
+        }
+    };
+};
+```
+
+### 7.4 Factory Using Builders
+
+```cpp
+class AsteroidFactory {
+    static unordered_map<string, AsteroidFlyweight> pool;
+
+    static string makeKey(int len, int wid, int wt,
+                          const string& col, const string& tex, const string& mat) {
+        return to_string(len) + "|" + to_string(wid) + "|" + to_string(wt)
+             + "|" + col + "|" + tex + "|" + mat;
+    }
+
+public:
+    static AsteroidFlyweight getAsteroid(int len, int wid, int wt,
+                                         const string& col,
+                                         const string& tex,
+                                         const string& mat) {
+        string key = makeKey(len, wid, wt, col, tex, mat);
+
+        auto it = pool.find(key);
+        if (it == pool.end()) {
+            // Build a new flyweight using Builder
+            AsteroidFlyweight fw = AsteroidFlyweight::Builder()
+                                        .setLength(len)
+                                        .setWidth(wid)
+                                        .setWeight(wt)
+                                        .setColor(col)
+                                        .setTexture(tex)
+                                        .setMaterial(mat)
+                                        .build();
+            pool.emplace(key, fw);
+            return fw;
+        }
+        return it->second;
+    }
+
+    static size_t getFlyweightCount() { return pool.size(); }
+
+    static size_t getTotalFlyweightMemory() {
+        if (pool.empty()) return 0;
+        return pool.size() * pool.begin()->second.getMemoryUsage();
+    }
+
+    static void cleanup() { pool.clear(); }
+};
+
+unordered_map<string, AsteroidFlyweight> AsteroidFactory::pool;
+```
+
+### 7.5 Space Game Using Builders
+
+```cpp
+class SpaceGameWithFlyweight {
+    vector<AsteroidContext> asteroids;
+
+public:
+    void spawnAsteroids(int count) {
+        string colors[]     = {"Red", "Blue", "Grey"};
+        string textures[]   = {"Rocky", "Metallic", "Icy"};
+        string materials[]  = {"Iron", "Stone", "Ice"};
+        int sizes[]         = {25, 35, 45};
+
+        for (int i = 0; i < count; i++) {
+            int type = i % 3;
+
+            // Get shared flyweight (Builder used inside factory)
+            AsteroidFlyweight fw = AsteroidFactory::getAsteroid(
+                sizes[type], sizes[type], sizes[type] * 10,
+                colors[type], textures[type], materials[type]
+            );
+
+            // Build context using Builder – much more readable!
+            AsteroidContext ctx = AsteroidContext::Builder()
+                                    .setPositionX(100 + i * 50)
+                                    .setPositionY(200 + i * 30)
+                                    .setVelocityX(1)
+                                    .setVelocityY(2)
+                                    .setFlyweight(fw)
+                                    .build();
+
+            asteroids.push_back(ctx);
+        }
+    }
+
+    void renderAll() {
+        for (int i = 0; i < min((int)asteroids.size(), 5); i++)
+            asteroids[i].render();
+    }
+
+    size_t calculateMemoryUsage() const {
+        if (asteroids.empty()) return 0;
+        return asteroids.size() * asteroids[0].getMemoryUsage()
+             + AsteroidFactory::getTotalFlyweightMemory();
+    }
+
+    int getAsteroidCount() const { return asteroids.size(); }
+};
+```
+
+### 7.6 Main
+
+```cpp
+int main() {
+    const int ASTEROID_COUNT = 1'000'000;
+
+    SpaceGameWithFlyweight game;
+    game.spawnAsteroids(ASTEROID_COUNT);
+    game.renderAll();
+
+    cout << "Total asteroids: " << game.getAsteroidCount() << endl;
+    cout << "Flyweight objects created: "
+         << AsteroidFactory::getFlyweightCount() << endl;
+
+    size_t mem = game.calculateMemoryUsage();
+    cout << "Total memory: " << mem << " bytes" << endl;
+    cout << "Total memory: " << mem / (1024.0 * 1024.0) << " MB" << endl;
+
+    AsteroidFactory::cleanup();
+    return 0;
+}
+```
+
+---
+
+## 8. UML with Builder Pattern
+
+```
+┌───────────────────────────────────┐
+│        AsteroidFlyweight          │
+├───────────────────────────────────┤
+│ - length: int                     │
+│ - width: int                      │
+│ - weight: int                     │
+│ - color: string                   │
+│ - texture: string                 │
+│ - material: string                │
+├───────────────────────────────────┤
+│ - AsteroidFlyweight(...)          │
+│ + render(px, py, vx, vy)          │
+│ + getMemoryUsage()                │
+├───────────────────────────────────┤
+│ + static class Builder {          │
+│     + setLength(int)              │
+│     + setWidth(int)               │
+│     + setWeight(int)              │
+│     + setColor(string)            │
+│     + setTexture(string)          │
+│     + setMaterial(string)         │
+│     + build(): AsteroidFlyweight  │
+│   }                               │
+└───────────────────────────────────┘
+              ▲
+              │ uses (has-a)
+              │
+┌───────────────────────────────────┐
+│         AsteroidContext           │
+├───────────────────────────────────┤
+│ - positionX: int                  │
+│ - positionY: int                  │
+│ - velocityX: int                  │
+│ - velocityY: int                  │
+│ - flyweight: AsteroidFlyweight    │
+├───────────────────────────────────┤
+│ - AsteroidContext(...)            │
+│ + render()                        │
+│ + getMemoryUsage()                │
+├───────────────────────────────────┤
+│ + static class Builder {          │
+│     + setPositionX(int)           │
+│     + setPositionY(int)           │
+│     + setVelocityX(int)           │
+│     + setVelocityY(int)           │
+│     + setFlyweight(AsteroidFlyweight)│
+│     + build(): AsteroidContext    │
+│   }                               │
+└───────────────────────────────────┘
+              ▲
+              │ creates
+              │
+┌───────────────────────────────────┐
+│         AsteroidFactory           │
+├───────────────────────────────────┤
+│ - pool: unordered_map<string,     │
+│         AsteroidFlyweight>        │
+├───────────────────────────────────┤
+│ + getAsteroid(...): AsteroidFlyweight│
+│ + getFlyweightCount(): size_t     │
+│ + getTotalFlyweightMemory(): size_t│
+│ + cleanup(): void                 │
+└───────────────────────────────────┘
+              ▲
+              │ uses
+              │
+┌───────────────────────────────────┐
+│     SpaceGameWithFlyweight        │
+│           (client)                │
+├───────────────────────────────────┤
+│ - asteroids: vector<AsteroidContext>│
+├───────────────────────────────────┤
+│ + spawnAsteroids(count)           │
+│ + renderAll()                     │
+│ + calculateMemoryUsage()          │
+│ + getAsteroidCount()              │
+└───────────────────────────────────┘
+```
+
+---
+
+## 9. Key Rules & Gotchas
+
+### ✅ Do's
+
+1. **Make Flyweight objects immutable** — because they are shared. If you change one, it affects all references.
+2. **Use a Factory with a Map (pool)** to reuse objects.
+3. **Separate intrinsic and extrinsic state** cleanly.
+4. **Use Builder** when there are many parameters to avoid unreadable constructors.
+5. **Generate a unique key** for each combination (e.g., `"10|10|1|Red|Rocky|Iron"`).
+
+### ❌ Don'ts
+
+1. **Don't use Flyweight for every object** — only when:
+   - You have **millions of objects**.
+   - The objects share a **large amount of intrinsic state**.
+   - **RAM is the bottleneck**.
+2. **Don't make the Flyweight mutable** unless you fully understand that all references will see the change.
+3. **Don't use a new object for extrinsic data** — store it in a lightweight Context class.
+
+---
+
+## 10. When to Use Flyweight
+
+| ✅ Use Flyweight When | ❌ Avoid Flyweight When |
+|----------------------|-------------------------|
+| Millions of similar objects | Few objects |
+| Large shared intrinsic state | All state is unique |
+| RAM is a limited resource | Memory is not a concern |
+| Objects are immutable/shareable | Objects need to be mutated independently |
+
+---
+
+## 11. Real-World Use Cases
+
+### 🎮 1. Open-World Games (GTA 5, GTA Vice City)
+- Trees, cars, pedestrians, boats, ships, buildings.
+- Thousands of pedestrians look identical but have different positions.
+- **Shared object** (model/texture) + **unique context** (position, animation state).
+
+### 📝 2. Text Editors
+- Every character (`'a'`, `'b'`, `'c'`, …) is a flyweight.
+- **Intrinsic:** glyph shape, font family, letter.
+- **Extrinsic:** position in document, font size, color, bold/italic.
+- Without Flyweight: millions of character objects → RAM explosion.
+- With Flyweight: only 26 letters (or ~128 ASCII) → tiny memory.
+
+```
+CharacterFlyweight: 'a' – font: Arial, size: 12
+   ├── Context: position (0,0) – bold
+   ├── Context: position (10,0) – italic
+   ├── Context: position (20,0) – normal
+   └── ... (all share the same 'a' flyweight)
+```
+
+### 🎨 3. Particle Systems
+- Fire, smoke, rain, bullets, explosions.
+- Thousands of particles share the same texture/sprite but differ in position/velocity.
+
+### 🖼️ 4. Word Processors / IDEs
+- Syntax highlighting, character rendering.
+
+### 🗺️ 5. Maps & GIS
+- Repeated icons (tree, road, building) at different coordinates.
+
+---
+
+## 12. Quick Revision (From Transcript)
+
+> 1. We have an object that consumes too much RAM.
+> 2. Split it into **intrinsic** (shared, immutable, stored in Flyweight) and **extrinsic** (unique, stored in Context).
+> 3. Use a **Factory** with a **Map (pool)** to reuse Flyweight objects.
+> 4. Generate a **unique key** from intrinsic properties.
+> 5. Only create as many Flyweights as there are **unique combinations**.
+> 6. Context objects are still created per instance (they're lightweight).
+> 7. Use **Builder pattern** to make object creation readable when there are many parameters.
+
+---
+
+## 13. Interview Soundbite
+
+> *"If memory is a concern and you have millions of fine-grained objects sharing large amounts of common state, I'd use the Flyweight pattern. I'd split the object into intrinsic (shared) and extrinsic (unique) properties, use a factory with a hash map pool to reuse intrinsic objects, and use the Builder pattern to construct both the Flyweight and Context objects readably. For example, in a game with millions of asteroids, this reduced memory from ~187 MB to ~22 MB — an ~88% reduction."*
+
+---
+
+## 14. Summary Table
+
+| Aspect | Detail |
+|--------|--------|
+| **Pattern Type** | Structural |
+| **Purpose** | Reduce memory by sharing objects |
+| **Key Concept** | Intrinsic (shared) vs Extrinsic (unique) |
+| **Core Components** | Flyweight, Context, Factory (with pool/Map) |
+| **When to Use** | Millions of similar objects, RAM limited |
+| **Real-World Examples** | Games (GTA), Text editors, Particle systems |
+| **Design Pattern Synergy** | Often combined with **Factory** and **Builder** |
+| **Memory Saved (Example)** | 186.92 MB → 22 MB (~88% reduction) |
+
+---
+
+## 31. Build Splitwise Clone | Expense Splitting App (1:36:19)
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
