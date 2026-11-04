@@ -19903,4 +19903,854 @@ CharacterFlyweight: 'a' – font: Arial, size: 12
 
 ## 31. Build Splitwise Clone | Expense Splitting App (1:36:19)
 
+## 1. Overview
+
+This tutorial walks through designing a **Splitwise clone** (expense-sharing app) — a classic LLD interview problem. The speaker emphasizes that it's frequently asked because it involves group management, settlement constraints, splitting strategies, transaction simplification, and notifications.
+
+**Core idea:** Users create groups, add expenses (paid by one, split among many), settle balances, and the system simplifies debts. Notifications are sent on every expense/settlement event.
+
+---
+
+## 2. Functional Requirements
+
+| # | Requirement | Notes |
+|---|-------------|-------|
+| 1 | User can **join or leave a group** | Leave is blocked until all their expenses are settled |
+| 2 | User can **add an expense in a group** | Paid by one user, split among involved users |
+| 3 | User can **settle an expense in a group** | Records a settlement transaction (no real money transfer; third-party integration out of scope) |
+| 4 | Expenses support **multiple split strategies** | Equal, Percentage, Exact (a.k.a. unequal) — must be extensible |
+| 5 | User **cannot leave a group with pending expenses** | Classic LLD constraint |
+| 6 | User can add **individual (1-on-1) expenses outside a group** | Direct user-to-user balances |
+| 7 | **Notifications** on expense add / settle | Sent to all group members (Observer pattern) |
+| 8 | **Transaction simplification** (enhancement) | Greedy algorithm to minimize number of settlement transactions |
+
+---
+
+## 3. Happy Flow
+
+```
+User opens app
+   │
+   ├── Sees list of groups (G1, G2, G3 ...)
+   │       └── Each group has members (U1, U2, U3 ...)
+   │
+   ├── Adds an expense in a group
+   │       └── "U1 paid ₹X, split among U1..Un via strategy S"
+   │       └── → Notification sent to all group members
+   │
+   ├── Settles an expense
+   │       └── "U2 paid U1 ₹Y"
+   │       └── → Notification sent to all group members
+   │
+   └── Individual (1-on-1) transactions with another user
+           └── Add expense / settle directly
+```
+
+---
+
+## 4. Design Patterns Used
+
+| Pattern | Where | Purpose |
+|---------|-------|---------|
+| **Observer** | `Group` (observable) → `User` (observer) | Notify members on expense/settlement |
+| **Strategy** | `SplitStrategy` → Equal / Percentage / Exact | Pluggable splitting algorithms |
+| **Factory** | `SplitFactory` | Create strategy from `SplitType` enum |
+| **Facade** | `Splitwise` class | Single entry point orchestrating users, groups, expenses |
+| **Singleton** | `Splitwise` | One global manager instance |
+| **Composition** | `Group` ◆— `DebtSimplifier` | Strong ownership; only group uses it |
+
+> Utility methods (`SplitFactory.getSplitStrategy`, `DebtSimplifier.simplifyDebt`) are made **static** instead of making those classes singletons — no object needed.
+
+---
+
+## 5. UML Diagram (ASCII)
+
+```
+                    ┌─────────────────────┐
+                    │  «interface»        │
+                    │  Observer           │
+                    │─────────────────────│
+                    │ + update(msg: String)│
+                    └──────────▲──────────┘
+                               │ implements
+                    ┌──────────┴──────────┐
+                    │  User               │
+                    │─────────────────────│
+                    │ - userId: String    │
+                    │ - name: String      │
+                    │ - email: String     │
+                    │ - balances: Map<UId,│
+                    │            Double>  │
+                    │─────────────────────│
+                    │ + update(msg)       │
+                    │ + updateBalance(    │
+                    │     otherId, amt)   │
+                    │ + getTotalOwed()    │
+                    │ + getTotalOwing()   │
+                    └─────────────────────┘
+
+┌──────────────────────┐        ┌──────────────────────┐
+│  Split               │        │  Expense             │
+│──────────────────────│        │──────────────────────│
+│ - userId: String     │◆───────│ - expenseId: String  │
+│ - amount: Double     │ 1..*   │ - description: String│
+└──────────────────────┘        │ - amount: Double     │
+                                │ - paidByUserId: String│
+                                │ - splits: List<Split>│
+                                │ - groupId: String    │
+                                └──────────────────────┘
+
+┌──────────────────────┐
+│ «abstract»           │
+│ SplitStrategy        │
+│──────────────────────│
+│ + calculateSplit(    │
+│    amount, userIds,  │
+│    values): List<Split>│
+└──────────▲───────────┘
+           │
+   ┌───────┼────────────┬──────────────┐
+   │       │            │              │
+┌──┴───┐ ┌─┴────────┐ ┌─┴─────────┐
+│Equal │ │Percentage│ │  Exact    │
+│Split │ │  Split   │ │  Split    │
+└──────┘ └──────────┘ └───────────┘
+
+┌──────────────────────┐        ┌──────────────────────┐
+│  SplitFactory        │        │  SplitType (enum)    │
+│──────────────────────│        │──────────────────────│
+│ + getSplitStrategy(  │───────▶│ EQUAL, PERCENTAGE,   │
+│    type: SplitType)  │        │ EXACT                │
+└──────────────────────┘        └──────────────────────┘
+
+┌─────────────────────────────────────────────────────┐
+│  Group  «Observable»                                │
+│─────────────────────────────────────────────────────│
+│ - groupId: String                                   │
+│ - name: String                                      │
+│ - members: List<User>                               │
+│ - groupExpenses: Map<expId, Expense>                │
+│ - groupBalances: Map<userId, Map<otherId, Double>>  │
+│─────────────────────────────────────────────────────│
+│ + addMember(User)                                   │
+│ + removeMember(userId): boolean                     │
+│ + notifyMembers(msg)                                │
+│ + isMember(userId): boolean                         │
+│ + addExpense(desc, amt, paidBy, involvedUsers,      │
+│              splitType, values)                     │
+│ + settlePayment(fromId, toId, amt)                  │
+│ + updateGroupBalance(fromId, toId, amt)             │
+│ + canUserLeaveGroup(userId): boolean                │
+│ + getUserGroupBalance(userId): Map                  │
+│ + showGroupBalance()                                │
+│ + simplifyGroupDebt()                               │
+└───────────────┬─────────────────────────────────────┘
+                │ ◆ (composition)
+                ▼
+┌─────────────────────────────────────────────────────┐
+│  DebtSimplifier (utility)                           │
+│─────────────────────────────────────────────────────│
+│ + simplifyDebt(Map<String,Map<String,Double>>): Map │  (static)
+└─────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────┐
+│  Splitwise  «Facade + Singleton»                    │
+│─────────────────────────────────────────────────────│
+│ - users: Map<String, User>                          │
+│ - groups: Map<String, Group>                        │
+│ - expenses: Map<String, Expense>                    │
+│ - instance: Splitwise (static)                      │
+│─────────────────────────────────────────────────────│
+│ + getInstance(): Splitwise                          │
+│ + createUser(name, email): User                     │
+│ + getUser(userId): User                             │
+│ + createGroup(name): Group                          │
+│ + getGroup(groupId): Group                          │
+│ + addUserToGroup(userId, groupId)                   │
+│ + removeUserFromGroup(userId, groupId)              │
+│ + addExpenseToGroup(groupId, desc, amt, paidBy,     │
+│                     involvedUsers, splitType, vals)  │
+│ + settlePaymentInGroup(groupId, from, to, amt)      │
+│ + addIndividualExpense(desc, amt, paidBy, toUser,   │
+│                        splitType, vals)              │
+│ + settleIndividualPayment(fromId, toId, amt)        │
+│ + showUserBalance(userId)                           │
+│ + showGroupBalance(groupId)                         │
+│ + simplifyGroupDebt(groupId)                        │
+└─────────────────────────────────────────────────────┘
+```
+
+**Relationships:**
+- `User` implements `Observer`
+- `Group` has `List<User>` (one-to-many)
+- `Expense` has `List<Split>` (one-to-many); `Split` belongs to `Expense`
+- `SplitStrategy` ← `EqualSplit`, `PercentageSplit`, `ExactSplit`
+- `SplitFactory` depends on `SplitType`
+- `Group` ◆— `DebtSimplifier` (strong composition)
+- `Splitwise` has maps of users, groups, expenses
+
+---
+
+## 6. Class-by-Class Breakdown with Code
+
+### 6.1 `Split`
+
+```cpp
+class Split {
+public:
+    string userId;
+    double amount;
+    Split(string userId, double amount) : userId(userId), amount(amount) {}
+};
+```
+
+> Instead of `vector<pair<string,double>>` (which causes "what is `.first` vs `.second`?" confusion), a dedicated `Split` class is used. Pairs are avoided in public APIs — only internal logic may use them.
+
+### 6.2 `Observer` (abstract) & `User` (concrete)
+
+```cpp
+class Observer {
+public:
+    virtual void update(const string& message) = 0;
+    virtual ~Observer() = default;
+};
+
+class User : public Observer {
+private:
+    string userId;
+    string name;
+    string email;
+    unordered_map<string, double> balances;  // otherUserId -> amount
+    static int nextUserId;
+
+public:
+    User(const string& name, const string& email) : name(name), email(email) {
+        userId = "USER" + to_string(++nextUserId);
+    }
+
+    string getUserId() const { return userId; }
+    string getName()   const { return name; }
+
+    // Observer callback — in production, route to push-notification engine
+    void update(const string& message) override {
+        cout << "[" << userId << "] Notification: " << message << endl;
+    }
+
+    // +amount => this user is owed; -amount => this user owes
+    void updateBalance(const string& otherUserId, double amount) {
+        balances[otherUserId] += amount;
+        if (abs(balances[otherUserId]) < 0.01) {
+            balances.erase(otherUserId);
+        }
+    }
+
+    double getTotalOwed() const {
+        double total = 0;
+        for (auto& [id, amt] : balances) if (amt < 0) total += amt;
+        return total;   // negative number = total you owe
+    }
+
+    double getTotalOwing() const {
+        double total = 0;
+        for (auto& [id, amt] : balances) if (amt > 0) total += amt;
+        return total;   // positive = total owed to you
+    }
+};
+int User::nextUserId = 0;
+```
+
+**Balance semantics:** `balances[otherId] = +X` means *otherId owes me X*; `-X` means *I owe otherId X*.
+
+### 6.3 `Expense`
+
+```cpp
+class Expense {
+private:
+    static int nextExpenseId;
+    string expenseId;
+    string description;
+    double amount;
+    string paidByUserId;
+    vector<Split> splits;
+    string groupId;    // empty/null for individual expense
+
+public:
+    Expense(const string& desc, double amt, const string& paidBy,
+            const vector<Split>& splits, const string& groupId = "")
+        : description(desc), amount(amt), paidByUserId(paidBy),
+          splits(splits), groupId(groupId) {
+        expenseId = "EXP" + to_string(++nextExpenseId);
+    }
+    // getters ...
+};
+int Expense::nextExpenseId = 0;
+```
+
+### 6.4 Strategy Pattern — Splitting
+
+```cpp
+class SplitStrategy {
+public:
+    virtual vector<Split> calculateSplit(
+        double totalAmount,
+        const vector<string>& userIds,
+        const vector<double>& values = {}) = 0;
+    virtual ~SplitStrategy() = default;
+};
+
+// ---- Equal ----
+class EqualSplit : public SplitStrategy {
+public:
+    vector<Split> calculateSplit(double total, const vector<string>& userIds,
+                                 const vector<double>& = {}) override {
+        vector<Split> result;
+        double perUser = total / userIds.size();
+        for (auto& uid : userIds) result.emplace_back(uid, perUser);
+        return result;
+    }
+};
+
+// ---- Exact ----
+class ExactSplit : public SplitStrategy {
+public:
+    vector<Split> calculateSplit(double total, const vector<string>& userIds,
+                                 const vector<double>& values = {}) override {
+        // validation: userIds.size() == values.size(), sum(values) == total
+        vector<Split> result;
+        for (size_t i = 0; i < userIds.size(); ++i)
+            result.emplace_back(userIds[i], values[i]);
+        return result;
+    }
+};
+
+// ---- Percentage ----
+class PercentageSplit : public SplitStrategy {
+public:
+    vector<Split> calculateSplit(double total, const vector<string>& userIds,
+                                 const vector<double>& values = {}) override {
+        // validation: sizes equal, percentages sum to 100
+        vector<Split> result;
+        for (size_t i = 0; i < userIds.size(); ++i) {
+            double amt = total * values[i] / 100.0;
+            result.emplace_back(userIds[i], amt);
+        }
+        return result;
+    }
+};
+```
+
+### 6.5 Factory
+
+```cpp
+enum class SplitType { EQUAL, PERCENTAGE, EXACT };
+
+class SplitFactory {
+public:
+    static SplitStrategy* getSplitStrategy(SplitType type) {
+        switch (type) {
+            case SplitType::EQUAL:      return new EqualSplit();
+            case SplitType::PERCENTAGE: return new PercentageSplit();
+            case SplitType::EXACT:      return new ExactSplit();
+            default:                    return new EqualSplit();  // safe default
+        }
+    }
+};
+```
+
+### 6.6 `Group` (Observable)
+
+```cpp
+class Group {
+private:
+    static int nextGroupId;
+    string groupId;
+    string name;
+    vector<User> members;
+    unordered_map<string, Expense> groupExpenses;  // expId -> Expense
+    // balances[userId][otherUserId] = amount (+ => other owes user)
+    unordered_map<string, unordered_map<string, double>> groupBalances;
+
+    User* getUserById(const string& uid) {
+        for (auto& u : members) if (u.getUserId() == uid) return &u;
+        return nullptr;
+    }
+
+public:
+    Group(const string& name) : name(name) {
+        groupId = "GRP" + to_string(++nextGroupId);
+    }
+
+    string getGroupId() const { return groupId; }
+
+    // ---------- Observable methods ----------
+    void addMember(const User& user) {
+        members.push_back(user);
+        groupBalances[user.getUserId()] = {};   // empty inner map
+        cout << "User " << user.getName() << " added to group " << name << "\n";
+    }
+
+    bool removeMember(const string& userId) {
+        if (!canUserLeaveGroup(userId)) return false;
+        // remove from members
+        members.erase(remove_if(members.begin(), members.end(),
+            [&](const User& u){ return u.getUserId() == userId; }), members.end());
+        // remove this user's row
+        groupBalances.erase(userId);
+        // remove this user from every other user's inner map
+        for (auto& [uid, innerMap] : groupBalances) innerMap.erase(userId);
+        return true;
+    }
+
+    void notifyMembers(const string& message) {
+        for (auto& u : members) u.update(message);
+    }
+
+    bool isMember(const string& userId) const {
+        return groupBalances.count(userId) > 0;
+    }
+
+    // ---------- Business methods ----------
+    void addExpense(const string& description, double amount,
+                    const string& paidByUserId,
+                    const vector<string>& involvedUserIds,
+                    SplitType splitType,
+                    const vector<double>& values = {}) {
+        // validations: paidBy is member; all involved are members
+        SplitStrategy* strat = SplitFactory::getSplitStrategy(splitType);
+        vector<Split> splits = strat->calculateSplit(amount, involvedUserIds, values);
+
+        Expense exp(description, amount, paidByUserId, splits, groupId);
+        groupExpenses[exp.getExpenseId()] = exp;
+
+        // Update running balances
+        for (auto& s : splits) {
+            updateGroupBalance(paidByUserId, s.userId, s.amount);
+        }
+
+        // Notify
+        string payerName = getUserById(paidByUserId)->getName();
+        string msg = "New expense added: " + description + " ₹" + to_string(amount)
+                   + " paid by " + payerName;
+        notifyMembers(msg);
+
+        cout << "Expense added: " << description << " ₹" << amount
+             << " paid by " << payerName << "\n";
+        for (auto& s : splits)
+            cout << "  " << s.userId << " owes ₹" << s.amount << "\n";
+    }
+
+    void settlePayment(const string& fromId, const string& toId, double amount) {
+        // validations: both members
+        updateGroupBalance(fromId, toId, amount);
+
+        string fromName = getUserById(fromId)->getName();
+        string toName   = getUserById(toId)->getName();
+        string msg = fromName + " settled ₹" + to_string(amount) + " with " + toName;
+        notifyMembers(msg);
+        cout << msg << "\n";
+    }
+
+    // fromId pays toId
+    void updateGroupBalance(const string& fromId, const string& toId, double amount) {
+        groupBalances[fromId][toId] += amount;   // fromId will receive
+        groupBalances[toId][fromId] -= amount;   // toId will pay
+        if (abs(groupBalances[fromId][toId]) < 0.01) groupBalances[fromId].erase(toId);
+        if (abs(groupBalances[toId][fromId]) < 0.01) groupBalances[toId].erase(fromId);
+    }
+
+    bool canUserLeaveGroup(const string& userId) {
+        if (!isMember(userId)) throw runtime_error("User is not a member");
+        for (auto& [otherId, amt] : groupBalances[userId])
+            if (abs(amt) > 0.01) return false;
+        return true;
+    }
+
+    unordered_map<string, double> getUserGroupBalance(const string& userId) {
+        return groupBalances[userId];
+    }
+
+    void showGroupBalance() {
+        cout << "---- Group " << name << " balances ----\n";
+        for (auto& [uid, innerMap] : groupBalances) {
+            cout << "User " << uid << ":\n";
+            for (auto& [other, amt] : innerMap)
+                cout << "   -> " << other << ": ₹" << amt << "\n";
+        }
+    }
+
+    void simplifyGroupDebt() {
+        groupBalances = DebtSimplifier::simplifyDebt(groupBalances);
+        cout << "Group debt simplified.\n";
+    }
+};
+int Group::nextGroupId = 0;
+```
+
+### 6.7 `Splitwise` Facade + Singleton
+
+```cpp
+class Splitwise {
+private:
+    unordered_map<string, User> users;
+    unordered_map<string, Group> groups;
+    unordered_map<string, Expense> expenses;
+
+    Splitwise() {}                                    // private ctor
+    static Splitwise* instance;
+
+public:
+    static Splitwise* getInstance() {
+        if (!instance) instance = new Splitwise();
+        return instance;
+    }
+
+    // ---- User management ----
+    User* createUser(const string& name, const string& email) {
+        User u(name, email);
+        users[u.getUserId()] = u;
+        return &users[u.getUserId()];
+    }
+    User* getUser(const string& uid) {
+        auto it = users.find(uid); return it == users.end() ? nullptr : &it->second;
+    }
+
+    // ---- Group management ----
+    Group* createGroup(const string& name) {
+        Group g(name);
+        groups[g.getGroupId()] = g;
+        return &groups[g.getGroupId()];
+    }
+    Group* getGroup(const string& gid) {
+        auto it = groups.find(gid); return it == groups.end() ? nullptr : &it->second;
+    }
+
+    void addUserToGroup(const string& userId, const string& groupId) {
+        auto u = getUser(userId); auto g = getGroup(groupId);
+        if (u && g) g->addMember(*u);
+    }
+    void removeUserFromGroup(const string& userId, const string& groupId) {
+        auto g = getGroup(groupId);
+        if (!g) { cout << "Group not found\n"; return; }
+        if (g->removeMember(userId)) cout << "User left successfully\n";
+        else cout << "User is not allowed to leave — pending expenses\n";
+    }
+
+    // ---- Group expenses / settlement ----
+    void addExpenseToGroup(const string& groupId, const string& desc, double amt,
+                           const string& paidBy,
+                           const vector<string>& involved,
+                           SplitType type,
+                           const vector<double>& values = {}) {
+        auto g = getGroup(groupId);
+        if (!g) { cout << "Group not found\n"; return; }
+        g->addExpense(desc, amt, paidBy, involved, type, values);
+    }
+    void settlePaymentInGroup(const string& groupId, const string& from,
+                              const string& to, double amt) {
+        auto g = getGroup(groupId);
+        if (!g) { cout << "Group not found\n"; return; }
+        g->settlePayment(from, to, amt);
+    }
+
+    // ---- Individual (1-on-1) ----
+    void addIndividualExpense(const string& desc, double amt,
+                              const string& paidByUserId,
+                              const string& toUserId,
+                              SplitType type,
+                              const vector<double>& values = {}) {
+        SplitStrategy* strat = SplitFactory::getSplitStrategy(type);
+        vector<Split> splits = strat->calculateSplit(amt, {paidByUserId, toUserId}, values);
+
+        Expense exp(desc, amt, paidByUserId, splits, "");
+        expenses[exp.getExpenseId()] = exp;
+
+        User* payer = getUser(paidByUserId);
+        User* payee = getUser(toUserId);
+        // payer lent money: payer is owed, payee owes
+        payer->updateBalance(toUserId, +amt);
+        payee->updateBalance(paidByUserId, -amt);
+
+        cout << payer->getName() << " paid ₹" << amt << " for " << payee->getName() << "\n";
+    }
+
+    void settleIndividualPayment(const string& fromId, const string& toId, double amt) {
+        User* from = getUser(fromId);
+        User* to   = getUser(toId);
+        from->updateBalance(toId,  +amt);
+        to->updateBalance(fromId, -amt);
+        cout << from->getName() << " settled ₹" << amt << " with " << to->getName() << "\n";
+    }
+
+    // ---- Display ----
+    void showUserBalance(const string& userId) {
+        User* u = getUser(userId);
+        if (!u) return;
+        cout << "Balance sheet of " << u->getName() << ":\n";
+        cout << "  Total owed (by others): " << u->getTotalOwing() << "\n";
+        cout << "  Total owing (to others): " << u->getTotalOwed() << "\n";
+    }
+
+    void showGroupBalance(const string& groupId) {
+        auto g = getGroup(groupId);
+        if (g) g->showGroupBalance();
+    }
+
+    void simplifyGroupDebt(const string& groupId) {
+        auto g = getGroup(groupId);
+        if (g) g->simplifyGroupDebt();
+    }
+};
+Splitwise* Splitwise::instance = nullptr;
+```
+
+---
+
+## 7. Debt Simplification Algorithm (Greedy)
+
+### 7.1 Why?
+
+When many expenses accumulate, there may be redundant chains of debt (A→B, B→C). The algorithm **minimizes the number of settlement transactions** while preserving net balances.
+
+### 7.2 Worked Example (from transcript)
+
+**Group:** Hostel Expenses — members: **Aditya (A), Rohit (R), Manish (M), Saurabh (S)**
+
+**Transaction 1:** Aditya paid ₹800 for lunch, split **equally** among all 4 → each owes ₹200
+
+**Transaction 2:** Manish paid ₹700 for dinner, **exact split** among Aditya (200), Manish (300), Saurabh (200) — Rohit not involved
+
+**Net balances:**
+
+| User | Net | Role |
+|------|-----|------|
+| Aditya | +400 | Creditor |
+| Manish | +200 | Creditor |
+| Rohit | −200 | Debtor |
+| Saurabh | −400 | Debtor |
+
+**Original settlement (3 txns):**
+- Rohit → Aditya ₹200
+- Saurabh → Aditya ₹200
+- Saurabh → Manish ₹200
+
+**Simplified (2 txns):**
+- Saurabh → Aditya ₹400
+- Rohit → Manish ₹200
+
+### 7.3 Algorithm Steps
+
+```
+1. Compute net amount for every user:
+   net[u] = Σ (amounts others owe u) − Σ (amounts u owes others)
+
+2. Split users into:
+      creditors = { u | net[u] > 0 }   (should receive)
+      debtors   = { u | net[u] < 0 }   (should pay)
+
+3. Sort both lists in descending order of |net|.
+
+4. Greedy matching:
+      i = 0 (debtor), j = 0 (creditor)
+      while i < debtors.size and j < creditors.size:
+          settleAmt = min( -net[debtor[i]], net[creditor[j]] )
+          record transaction: debtor[i] → creditor[j] : settleAmt
+          net[debtor[i]]   += settleAmt
+          net[creditor[j]] -= settleAmt
+          if net[debtor[i]]   ≈ 0: i++
+          if net[creditor[j]] ≈ 0: j++
+
+5. Return the list of (from, to, amount) transactions.
+```
+
+### 7.4 Code Skeleton (student exercise in transcript)
+
+```cpp
+class DebtSimplifier {
+public:
+    static unordered_map<string, unordered_map<string, double>>
+    simplifyDebt(const unordered_map<string, unordered_map<string, double>>& balances) {
+
+        // Step 1: net amount per user
+        unordered_map<string, double> net;
+        for (auto& [creditorId, innerMap] : balances) {
+            for (auto& [debtorId, amount] : innerMap) {
+                if (amount > 0) {                 // process each pair once
+                    net[creditorId] += amount;
+                    net[debtorId]   -= amount;
+                }
+            }
+        }
+
+        // Step 2: split into creditors & debtors
+        vector<pair<string,double>> creditors, debtors;
+        for (auto& [uid, amt] : net) {
+            if (amt > 0) creditors.push_back({uid,  amt});
+            else if (amt < 0) debtors.push_back({uid, -amt});
+        }
+
+        // Step 3: sort descending
+        sort(creditors.begin(), creditors.end(),
+             [](auto& a, auto& b){ return a.second > b.second; });
+        sort(debtors.begin(), debtors.end(),
+             [](auto& a, auto& b){ return a.second > b.second; });
+
+        // Step 4: greedy matching
+        unordered_map<string, unordered_map<string, double>> result;
+        size_t i = 0, j = 0;
+        while (i < debtors.size() && j < creditors.size()) {
+            double amt = min(debtors[i].second, creditors[j].second);
+            result[creditors[j].first][debtors[i].first] = amt;  // debtor pays creditor
+            debtors[i].second   -= amt;
+            creditors[j].second -= amt;
+            if (debtors[i].second   < 1e-9) i++;
+            if (creditors[j].second < 1e-9) j++;
+        }
+        return result;
+    }
+};
+```
+
+> **Note:** The transcript deliberately leaves the full implementation as an exercise — the hint is "greedy: sort by absolute amount and pair largest debtor with largest creditor."
+
+---
+
+## 8. End-to-End Demo (`main`)
+
+```cpp
+int main() {
+    Splitwise* app = Splitwise::getInstance();
+
+    // 1. Create users
+    User* aditya  = app->createUser("Aditya",  "a@x.com");
+    User* rohit   = app->createUser("Rohit",   "r@x.com");
+    User* manish  = app->createUser("Manish",  "m@x.com");
+    User* saurabh = app->createUser("Saurabh", "s@x.com");
+
+    // 2. Create group and add members
+    Group* hostel = app->createGroup("Hostel Expenses");
+    app->addUserToGroup(aditya->getUserId(),  hostel->getGroupId());
+    app->addUserToGroup(rohit->getUserId(),   hostel->getGroupId());
+    app->addUserToGroup(manish->getUserId(),  hostel->getGroupId());
+    app->addUserToGroup(saurabh->getUserId(), hostel->getGroupId());
+
+    // 3. Expense 1: Aditya paid ₹800 lunch, equal split among all 4
+    vector<string> all = {aditya->getUserId(), rohit->getUserId(),
+                          manish->getUserId(), saurabh->getUserId()};
+    app->addExpenseToGroup(hostel->getGroupId(), "Lunch", 800,
+                           aditya->getUserId(), all, SplitType::EQUAL);
+
+    // 4. Expense 2: Manish paid ₹700 dinner, exact split (A=200, M=300, S=200)
+    vector<string> three = {aditya->getUserId(), manish->getUserId(), saurabh->getUserId()};
+    vector<double> vals  = {200, 300, 200};
+    app->addExpenseToGroup(hostel->getGroupId(), "Dinner", 700,
+                           manish->getUserId(), three, SplitType::EXACT, vals);
+
+    // 5. Show group balance
+    app->showGroupBalance(hostel->getGroupId());
+
+    // 6. Simplify
+    app->simplifyGroupDebt(hostel->getGroupId());
+    app->showGroupBalance(hostel->getGroupId());
+
+    // 7. Individual expense: Rohit paid ₹40 coffee for Saurabh, equal split
+    app->addIndividualExpense("Coffee", 40, rohit->getUserId(),
+                              saurabh->getUserId(), SplitType::EQUAL);
+
+    // 8. Try to remove Rohit (should fail — pending balance in group)
+    app->removeUserFromGroup(rohit->getUserId(), hostel->getGroupId());
+
+    // 9. Settle Rohit's balance, then remove
+    app->settlePaymentInGroup(hostel->getGroupId(),
+                              rohit->getUserId(), manish->getUserId(), 200);
+    app->removeUserFromGroup(rohit->getUserId(), hostel->getGroupId());
+
+    // 10. Show final state
+    app->showGroupBalance(hostel->getGroupId());
+    return 0;
+}
+```
+
+### Expected Console Output (abridged)
+
+```
+User Aditya added to group Hostel Expenses
+...
+[USER1] Notification: New expense added: Lunch ₹800 paid by Aditya
+[USER2] Notification: New expense added: Lunch ₹800 paid by Aditya
+[USER3] Notification: New expense added: Lunch ₹800 paid by Aditya
+[USER4] Notification: New expense added: Lunch ₹800 paid by Aditya
+Expense added: Lunch ₹800 paid by Aditya
+  USER1 owes ₹200
+  USER2 owes ₹200
+  USER3 owes ₹200
+  USER4 owes ₹200
+...
+---- Group Hostel Expenses balances ----
+User USER1: -> USER2: ₹200, -> USER3: ₹200
+User USER2: -> USER1: ₹-200
+User USER3: -> USER1: ₹-200
+User USER4: -> USER1: ₹-200, -> USER3: ₹-200
+...
+Group debt simplified.
+---- Group Hostel Expenses balances ----
+User USER1: -> USER4: ₹400
+User USER3: -> USER2: ₹200
+User USER4: -> USER1: ₹-400
+User USER2: -> USER3: ₹-200
+...
+User is not allowed to leave — pending expenses
+[USER1] Notification: Rohit settled ₹200 with Manish
+...
+User left successfully
+```
+
+---
+
+## 9. Key Design Decisions & Takeaways
+
+| Decision | Reasoning |
+|----------|-----------|
+| `Split` class instead of `pair<string,double>` | Avoids `.first`/`.second` ambiguity; pairs only for internal logic |
+| `map<userId, map<otherId, double>>` for group balances | Need per-user balance sheet, not a single flat map |
+| Two maps in `Group`: `expenses` + `balances` | One for **history** (what was paid for what), one for **current net position** |
+| `List<User>` in `Group` (not `List<Observer>`) | Only `User` is an observer here; avoids casting. Trade-off: tightly coupled |
+| `canUserLeaveGroup` checks all balances | Enforces "settle before leaving" requirement |
+| Default fallback to `EqualSplit` in factory | Prevents null crashes if enum is unexpected |
+| `Splitwise` is Singleton + Facade | Single global entry point; delegates everything |
+| `DebtSimplifier` composition, static method | Only group uses it; no need for instance |
+| Notifications via `notifyMembers` called from `addExpense` and `settlePayment` | Observer pattern ensures all members are informed |
+| Validation guardrails | `addExpense`/`settlePayment` check membership; `ExactSplit`/`PercentageSplit` validate array sizes and totals |
+
+---
+
+## 10. Complete Requirements → Design Mapping
+
+| Requirement | Realized By |
+|-------------|-------------|
+| Join/leave group | `Group.addMember`, `Group.removeMember` |
+| Can't leave with pending expenses | `Group.canUserLeaveGroup` |
+| Add expense in group | `Group.addExpense` → `SplitFactory` → `updateGroupBalance` → `notifyMembers` |
+| Settle expense | `Group.settlePayment` → `updateGroupBalance` → `notifyMembers` |
+| Split strategies (Equal/Percentage/Exact) | `SplitStrategy` hierarchy + `SplitFactory` |
+| Individual (1-on-1) expenses | `Splitwise.addIndividualExpense`, `settleIndividualPayment` → `User.updateBalance` |
+| Notifications | `Observer` interface, `Group.notifyMembers` |
+| Transaction simplification | `Group.simplifyGroupDebt` → `DebtSimplifier.simplifyDebt` |
+| Single entry point | `Splitwise` (Facade + Singleton) |
+
+---
+
+## 11. Suggested Extensions (mentioned in the talk)
+
+1. **Per-user notification**: Make `User` also an `Observable` (not just `Observer`), so one user can directly notify another — but this complicates design (a user is both observable and observer).
+2. **Database integration**: Auto-increment IDs / UUIDs instead of static counters.
+3. **Additional split strategies**: e.g., "shares-based" (2:1 split).
+4. **Persistence layer**: Currently everything is in-memory.
+
+
+This summary captures the entire video's flow: requirements → happy path → UML → pattern choices → class-by-class implementation → greedy debt simplification with a fully worked numeric example → end-to-end demo with expected output.
+
+---
+
+## 32. State Design Pattern | Build Vending Machine (UML & Code) (1:14:44)
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
