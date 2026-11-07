@@ -20753,5 +20753,4 @@ This summary captures the entire video's flow: requirements → happy path → U
 
 ## 32. State Design Pattern | Build Vending Machine (UML & Code) (1:14:44)
 
-
 summaries system design tutorial transcript in details along with useful code examples and diagrams
