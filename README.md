@@ -20753,5 +20753,727 @@ This summary captures the entire video's flow: requirements → happy path → U
 
 ## 32. State Design Pattern | Build Vending Machine (UML & Code) (1:14:44)
 
+## Overview
+
+The State Design Pattern is a behavioral design pattern that allows an object to alter its behavior when its internal state changes. The object appears to change its class as it transitions between different states.
+
+---
+
+## Core Concept
+
+### Problem Statement
+An object can exist in a **limited number of states** and can perform a **limited number of operations**. When an operation is performed, the object may transition to a new state.
+
+### Key Characteristics
+- **Finite States**: The object has a bounded set of possible states
+- **Finite Operations**: A limited set of methods can be called on the object
+- **State Transitions**: Each operation on a particular state may trigger a transition to another state (or remain in the same state)
+- **Behavioral Change**: The same method call produces different behavior depending on the current state
+
+---
+
+## State Machine Diagram (SMD)
+
+### Basic Structure
+A State Machine Diagram visualizes:
+- **States**: Represented as circles/nodes (A, B, C, D...)
+- **Transitions**: Arrows showing how operations move the object between states
+- **Operations**: Labels on transitions indicating what triggers the state change
+
+### Example SMD (Generic)
+```
+┌─────────┐    m1     ┌─────────┐    m2     ┌─────────┐    m3     ┌─────────┐
+│ State A │──────────▶│ State B │──────────▶│ State C │──────────▶│ State D │
+└─────────┘           └─────────┘           └─────────┘           └─────────┘
+     ▲                                                                  │
+     │                              m4                                  │
+     └──────────────────────────────────────────────────────────────────┘
+
+     │                                                                  
+     │ m2 (stays in A)                                                  
+     ▼                                                                  
+┌─────────┐                                                            
+│ State A │                                                            
+└─────────┘                                                            
+```
+
+**Key Points:**
+- Some operations cause state changes (m1: A→B)
+- Some operations keep the object in the same state (m2: A→A)
+- The pattern of transitions depends on the specific use case
+
+---
+
+## Vending Machine Example
+
+### Scenario
+A simple vending machine that dispenses water bottles (₹20 each). The machine accepts coins and can be in one of four states.
+
+### States
+1. **No Coin State**: Machine is idle, waiting for coin insertion
+2. **Has Coin State**: Machine has received coin(s), waiting for item selection
+3. **Dispense State**: Machine is dispensing the selected item
+4. **Sold Out State**: Machine has no items left
+
+### Operations
+1. **Insert Coin**: User inserts a coin
+2. **Select Item**: User selects an item to purchase
+3. **Dispense**: Machine dispenses the item
+4. **Return Coin**: Machine returns inserted coins to user
+5. **Refill**: Machine is refilled with items
+
+---
+
+## Complete State Machine Diagram for Vending Machine
+
+```
+                              insertCoin
+     ┌─────────────────────────────────────────────────────────────┐
+     │                                                             │
+     ▼                                                             │
+┌─────────────┐                    ┌─────────────┐                 │
+│  No Coin    │───insertCoin──────▶│ Has Coin    │                 │
+│  State      │                    │ State       │                 │
+└─────────────┘                    └─────────────┘                 │
+     ▲                                   │                         │
+     │                                   │ selectItem              │
+     │                                   ▼                         │
+     │                            ┌─────────────┐                  │
+     │                            │  Dispense   │                  │
+     │◀─────dispense──────────────│  State      │                  │
+     │      (items remain)        └─────────────┘                  │
+     │                                   │                         │
+     │                                   │ dispense                │
+     │                                   │ (no items left)         │
+     │                                   ▼                         │
+     │                            ┌─────────────┐                  │
+     │                            │  Sold Out   │                  │
+     └──────refill────────────────│  State      │                  │
+                                  └─────────────┘                  │
+                                                                   │
+     All other operations (selectItem, dispense,                    │
+     returnCoin, refill) from No Coin State                        │
+     → Stay in No Coin State                                        │
+```
+
+### State Transition Table
+
+| Current State | insertCoin | selectItem | dispense | returnCoin | refill |
+|---------------|------------|------------|----------|------------|--------|
+| **No Coin** | Has Coin | No Coin | No Coin | No Coin | No Coin |
+| **Has Coin** | Has Coin | Dispense | Has Coin | No Coin | Has Coin |
+| **Dispense** | Dispense | Dispense | No Coin/Sold Out | Dispense | Dispense |
+| **Sold Out** | Sold Out | Sold Out | Sold Out | Sold Out | No Coin |
+
+---
+
+## UML Class Diagram
+
+### Structure
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              <<Context>>                                     │
+│                            VendingMachine                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ - currentState: VendingMachineState                                          │
+│ - noCoinState: NoCoinState                                                   │
+│ - hasCoinState: HasCoinState                                                 │
+│ - dispenseState: DispenseState                                               │
+│ - soldOutState: SoldOutState                                                 │
+│ - itemCount: int                                                             │
+│ - itemPrice: int                                                             │
+│ - insertedCoins: int                                                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ + insertCoin(coin: int): void                                                │
+│ + selectItem(): void                                                         │
+│ + dispense(): void                                                           │
+│ + returnCoin(): void                                                         │
+│ + refill(quantity: int): void                                                │
+│ + getCurrentState(): VendingMachineState                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      │ has-a
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           <<Abstract>>                                       │
+│                        VendingMachineState                                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ + insertCoin(machine: VendingMachine, coin: int): VendingMachineState       │
+│ + selectItem(machine: VendingMachine): VendingMachineState                   │
+│ + dispense(machine: VendingMachine): VendingMachineState                     │
+│ + returnCoin(machine: VendingMachine): VendingMachineState                   │
+│ + refill(machine: VendingMachine, quantity: int): VendingMachineState       │
+│ + getStateName(): string                                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      ▲
+                                      │ inherits
+          ┌───────────────┬───────────┴───────────┬───────────────┐
+          │               │                       │               │
+          ▼               ▼                       ▼               ▼
+┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
+│   NoCoinState   │ │   HasCoinState  │ │  DispenseState  │ │  SoldOutState   │
+├─────────────────┤ ├─────────────────┤ ├─────────────────┤ ├─────────────────┤
+│ + insertCoin()  │ │ + insertCoin()  │ │ + insertCoin()  │ │ + insertCoin()  │
+│ + selectItem()  │ │ + selectItem()  │ │ + selectItem()  │ │ + selectItem()  │
+│ + dispense()    │ │ + dispense()    │ │ + dispense()    │ │ + dispense()    │
+│ + returnCoin()  │ │ + returnCoin()  │ │ + returnCoin()  │ │ + returnCoin()  │
+│ + refill()      │ │ + refill()      │ │ + refill()      │ │ + refill()      │
+└─────────────────┘ └─────────────────┘ └─────────────────┘ └─────────────────┘
+
+Note: Each concrete state holds references to other states (for transitions)
+```
+
+---
+
+## Code Implementation (C++)
+
+### 1. Abstract State Class
+
+```cpp
+#include <iostream>
+#include <string>
+using namespace std;
+
+// Forward declaration
+class VendingMachine;
+
+// Abstract State Class
+class VendingMachineState {
+public:
+    virtual VendingMachineState* insertCoin(VendingMachine* machine, int coin) = 0;
+    virtual VendingMachineState* selectItem(VendingMachine* machine) = 0;
+    virtual VendingMachineState* dispense(VendingMachine* machine) = 0;
+    virtual VendingMachineState* returnCoin(VendingMachine* machine) = 0;
+    virtual VendingMachineState* refill(VendingMachine* machine, int quantity) = 0;
+    virtual string getStateName() = 0;
+    virtual ~VendingMachineState() {}
+};
+```
+
+### 2. Context Class (Vending Machine)
+
+```cpp
+class VendingMachine {
+private:
+    VendingMachineState* currentState;
+    
+    // Concrete state references (created once)
+    VendingMachineState* noCoinState;
+    VendingMachineState* hasCoinState;
+    VendingMachineState* dispenseState;
+    VendingMachineState* soldOutState;
+    
+    int itemCount;
+    int itemPrice;
+    int insertedCoins;
+
+public:
+    VendingMachine(int itemCount, int itemPrice) 
+        : itemCount(itemCount), itemPrice(itemPrice), insertedCoins(0) {
+        
+        // Create state objects once
+        noCoinState = new NoCoinState();
+        hasCoinState = new HasCoinState();
+        dispenseState = new DispenseState();
+        soldOutState = new SoldOutState();
+        
+        // Set initial state
+        if (itemCount > 0) {
+            currentState = noCoinState;
+        } else {
+            currentState = soldOutState;
+        }
+    }
+    
+    // Delegate all operations to current state
+    void insertCoin(int coin) {
+        currentState = currentState->insertCoin(this, coin);
+    }
+    
+    void selectItem() {
+        currentState = currentState->selectItem(this);
+    }
+    
+    void dispense() {
+        currentState = currentState->dispense(this);
+    }
+    
+    void returnCoin() {
+        currentState = currentState->returnCoin(this);
+    }
+    
+    void refill(int quantity) {
+        currentState = currentState->refill(this, quantity);
+    }
+    
+    void printStatus() {
+        cout << "Items: " << itemCount 
+             << " | Coins: ₹" << insertedCoins 
+             << " | State: " << currentState->getStateName() << endl;
+    }
+    
+    // Getters and Setters
+    VendingMachineState* getNoCoinState() { return noCoinState; }
+    VendingMachineState* getHasCoinState() { return hasCoinState; }
+    VendingMachineState* getDispenseState() { return dispenseState; }
+    VendingMachineState* getSoldOutState() { return soldOutState; }
+    
+    int getItemCount() { return itemCount; }
+    int getItemPrice() { return itemPrice; }
+    int getInsertedCoins() { return insertedCoins; }
+    
+    void setInsertedCoins(int coins) { insertedCoins = coins; }
+    void decrementItemCount() { itemCount--; }
+    void incrementItemCount(int qty) { itemCount += qty; }
+    
+    ~VendingMachine() {
+        delete noCoinState;
+        delete hasCoinState;
+        delete dispenseState;
+        delete soldOutState;
+    }
+};
+```
+
+### 3. Concrete State: No Coin State
+
+```cpp
+class NoCoinState : public VendingMachineState {
+public:
+    VendingMachineState* insertCoin(VendingMachine* machine, int coin) override {
+        machine->setInsertedCoins(coin);
+        cout << "Coin inserted: ₹" << coin << " | Balance: ₹" 
+             << machine->getInsertedCoins() << endl;
+        return machine->getHasCoinState();
+    }
+    
+    VendingMachineState* selectItem(VendingMachine* machine) override {
+        cout << "Please insert coin first!" << endl;
+        return machine->getNoCoinState();
+    }
+    
+    VendingMachineState* dispense(VendingMachine* machine) override {
+        cout << "Cannot dispense. Please insert coin and select item first." << endl;
+        return machine->getNoCoinState();
+    }
+    
+    VendingMachineState* returnCoin(VendingMachine* machine) override {
+        cout << "No coin to return." << endl;
+        return machine->getNoCoinState();
+    }
+    
+    VendingMachineState* refill(VendingMachine* machine, int quantity) override {
+        machine->incrementItemCount(quantity);
+        cout << "Machine refilled with " << quantity << " items." << endl;
+        return machine->getNoCoinState();
+    }
+    
+    string getStateName() override { return "No Coin State"; }
+};
+```
+
+### 4. Concrete State: Has Coin State
+
+```cpp
+class HasCoinState : public VendingMachineState {
+public:
+    VendingMachineState* insertCoin(VendingMachine* machine, int coin) override {
+        machine->setInsertedCoins(machine->getInsertedCoins() + coin);
+        cout << "Additional coin inserted: ₹" << coin << " | Balance: ₹" 
+             << machine->getInsertedCoins() << endl;
+        return machine->getHasCoinState();  // Stay in same state
+    }
+    
+    VendingMachineState* selectItem(VendingMachine* machine) override {
+        if (machine->getInsertedCoins() >= machine->getItemPrice()) {
+            int change = machine->getInsertedCoins() - machine->getItemPrice();
+            if (change > 0) {
+                cout << "Change returned: ₹" << change << endl;
+            }
+            machine->setInsertedCoins(0);
+            cout << "Item selected. Dispensing..." << endl;
+            return machine->getDispenseState();
+        } else {
+            int needed = machine->getItemPrice() - machine->getInsertedCoins();
+            cout << "Insufficient funds. Need ₹" << needed << " more." << endl;
+            return machine->getHasCoinState();  // Stay in same state
+        }
+    }
+    
+    VendingMachineState* dispense(VendingMachine* machine) override {
+        cout << "Please select an item first!" << endl;
+        return machine->getHasCoinState();
+    }
+    
+    VendingMachineState* returnCoin(VendingMachine* machine) override {
+        cout << "Returning coins: ₹" << machine->getInsertedCoins() << endl;
+        machine->setInsertedCoins(0);
+        return machine->getNoCoinState();
+    }
+    
+    VendingMachineState* refill(VendingMachine* machine, int quantity) override {
+        cout << "Cannot refill while transaction in progress!" << endl;
+        return machine->getHasCoinState();
+    }
+    
+    string getStateName() override { return "Has Coin State"; }
+};
+```
+
+### 5. Concrete State: Dispense State
+
+```cpp
+class DispenseState : public VendingMachineState {
+public:
+    VendingMachineState* insertCoin(VendingMachine* machine, int coin) override {
+        cout << "Please wait. Already dispensing item." << endl;
+        return machine->getDispenseState();
+    }
+    
+    VendingMachineState* selectItem(VendingMachine* machine) override {
+        cout << "Already dispensing. Please wait." << endl;
+        return machine->getDispenseState();
+    }
+    
+    VendingMachineState* dispense(VendingMachine* machine) override {
+        cout << "Dispensing item..." << endl;
+        machine->decrementItemCount();
+        
+        if (machine->getItemCount() > 0) {
+            return machine->getNoCoinState();
+        } else {
+            cout << "Machine is now SOLD OUT!" << endl;
+            return machine->getSoldOutState();
+        }
+    }
+    
+    VendingMachineState* returnCoin(VendingMachine* machine) override {
+        cout << "Cannot return coin. Item is being dispensed." << endl;
+        return machine->getDispenseState();
+    }
+    
+    VendingMachineState* refill(VendingMachine* machine, int quantity) override {
+        cout << "Cannot refill while dispensing." << endl;
+        return machine->getDispenseState();
+    }
+    
+    string getStateName() override { return "Dispense State"; }
+};
+```
+
+### 6. Concrete State: Sold Out State
+
+```cpp
+class SoldOutState : public VendingMachineState {
+public:
+    VendingMachineState* insertCoin(VendingMachine* machine, int coin) override {
+        cout << "Machine is sold out. Cannot accept coins." << endl;
+        return machine->getSoldOutState();
+    }
+    
+    VendingMachineState* selectItem(VendingMachine* machine) override {
+        cout << "Machine is sold out. No items available." << endl;
+        return machine->getSoldOutState();
+    }
+    
+    VendingMachineState* dispense(VendingMachine* machine) override {
+        cout << "Machine is sold out. Cannot dispense." << endl;
+        return machine->getSoldOutState();
+    }
+    
+    VendingMachineState* returnCoin(VendingMachine* machine) override {
+        cout << "No coins to return." << endl;
+        return machine->getSoldOutState();
+    }
+    
+    VendingMachineState* refill(VendingMachine* machine, int quantity) override {
+        machine->incrementItemCount(quantity);
+        cout << "Machine refilled with " << quantity << " items. Ready to use!" << endl;
+        return machine->getNoCoinState();
+    }
+    
+    string getStateName() override { return "Sold Out State"; }
+};
+```
+
+### 7. Main Function (Client)
+
+```cpp
+int main() {
+    // Create vending machine with 2 items at ₹20 each
+    VendingMachine machine(2, 20);
+    
+    cout << "\n=== Initial State ===" << endl;
+    machine.printStatus();
+    
+    cout << "\n=== Try selecting item without coin ===" << endl;
+    machine.selectItem();
+    machine.printStatus();
+    
+    cout << "\n=== Insert ₹10 coin ===" << endl;
+    machine.insertCoin(10);
+    machine.printStatus();
+    
+    cout << "\n=== Try selecting item with insufficient funds ===" << endl;
+    machine.selectItem();
+    machine.printStatus();
+    
+    cout << "\n=== Insert another ₹10 ===" << endl;
+    machine.insertCoin(10);
+    machine.printStatus();
+    
+    cout << "\n=== Select item ===" << endl;
+    machine.selectItem();
+    machine.printStatus();
+    
+    cout << "\n=== Dispense item ===" << endl;
+    machine.dispense();
+    machine.printStatus();
+    
+    cout << "\n=== Buy second item ===" << endl;
+    machine.insertCoin(20);
+    machine.selectItem();
+    machine.dispense();
+    machine.printStatus();
+    
+    cout << "\n=== Try inserting coin when sold out ===" << endl;
+    machine.insertCoin(10);
+    
+    cout << "\n=== Refill machine ===" << endl;
+    machine.refill(5);
+    machine.printStatus();
+    
+    return 0;
+}
+```
+
+### Expected Output
+
+```
+=== Initial State ===
+Items: 2 | Coins: ₹0 | State: No Coin State
+
+=== Try selecting item without coin ===
+Please insert coin first!
+Items: 2 | Coins: ₹0 | State: No Coin State
+
+=== Insert ₹10 coin ===
+Coin inserted: ₹10 | Balance: ₹10
+Items: 2 | Coins: ₹10 | State: Has Coin State
+
+=== Try selecting item with insufficient funds ===
+Insufficient funds. Need ₹10 more.
+Items: 2 | Coins: ₹10 | State: Has Coin State
+
+=== Insert another ₹10 ===
+Additional coin inserted: ₹10 | Balance: ₹20
+Items: 2 | Coins: ₹20 | State: Has Coin State
+
+=== Select item ===
+Item selected. Dispensing...
+Items: 2 | Coins: ₹0 | State: Dispense State
+
+=== Dispense item ===
+Dispensing item...
+Items: 1 | Coins: ₹0 | State: No Coin State
+
+=== Buy second item ===
+Coin inserted: ₹20 | Balance: ₹20
+Item selected. Dispensing...
+Dispensing item...
+Machine is now SOLD OUT!
+Items: 0 | Coins: ₹0 | State: Sold Out State
+
+=== Try inserting coin when sold out ===
+Machine is sold out. Cannot accept coins.
+
+=== Refill machine ===
+Machine refilled with 5 items. Ready to use!
+Items: 5 | Coins: ₹0 | State: No Coin State
+```
+
+---
+
+## Standard UML Diagram (Generic Pattern)
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         <<Context>>                                  │
+│                          Context                                     │
+├─────────────────────────────────────────────────────────────────────┤
+│ - state: State                                                       │
+├─────────────────────────────────────────────────────────────────────┤
+│ + request()                                                          │
+│   { state->handle() }                                                │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+                              │ has-a
+                              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                         <<Abstract>>                                 │
+│                           State                                      │
+├─────────────────────────────────────────────────────────────────────┤
+│ + handle(): State*                                                   │
+└─────────────────────────────────────────────────────────────────────┘
+                              ▲
+                              │ inherits
+          ┌───────────────────┼───────────────────┐
+          │                   │                   │
+          ▼                   ▼                   ▼
+┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
+│  ConcreteStateA │ │  ConcreteStateB │ │  ConcreteStateC │
+├─────────────────┤ ├─────────────────┤ ├─────────────────┤
+│ + handle():     │ │ + handle():     │ │ + handle():     │
+│   return B      │ │   return C      │ │   return A      │
+└─────────────────┘ └─────────────────┘ └─────────────────┘
+        │                   │                   │
+        └───────────────────┴───────────────────┘
+                    (state transitions)
+```
+
+**Key Points:**
+- **Context** holds a reference to the current State object
+- **State** is an abstract class/interface defining the handle() method
+- **Concrete States** implement handle() and return the next state
+- Each concrete state may hold references to other states for transitions
+
+---
+
+## Standard Definition
+
+> **State Pattern** allows an object to alter its behavior when its internal state changes. The object will appear to change its class.
+
+### Key Benefits
+
+1. **Eliminates Conditional Logic**: Instead of massive if-else or switch statements, each state encapsulates its own behavior
+2. **Open/Closed Principle**: New states can be added without modifying existing code
+3. **Single Responsibility**: Each state class handles behavior specific to that state
+4. **Cleaner Code**: State transitions are explicit and easy to understand
+5. **Encapsulation**: State-specific behavior is encapsulated in separate classes
+
+### When to Use
+
+- Object behavior depends on its state
+- Operations have large conditional statements that depend on object state
+- State transitions are well-defined and finite
+- You want to avoid monolithic classes with many conditionals
+
+---
+
+## Real-World Use Cases
+
+### 1. Vending Machine
+- States: No Coin, Has Coin, Dispense, Sold Out
+- Classic interview question demonstrating the pattern
+
+### 2. Document Editor (e.g., Google Docs, WordPress)
+- States: Draft, Published, Archived, Deleted
+- Operations: Edit, Publish, Archive, Delete, Restore
+
+### 3. ATM Machine
+- States: Idle, Card Inserted, PIN Validation, Transaction, Out of Cash
+- Operations: Insert Card, Enter PIN, Withdraw, Deposit, Eject Card
+
+### 4. Traffic Light
+- States: Red, Yellow, Green
+- Operations: Timer expires → transition to next state
+
+### 5. Order Processing System
+- States: Pending, Confirmed, Shipped, Delivered, Cancelled
+- Operations: Confirm, Ship, Deliver, Cancel
+
+### 6. Media Player
+- States: Playing, Paused, Stopped
+- Operations: Play, Pause, Stop
+
+### 7. TCP Connection
+- States: Closed, Listen, SYN Sent, Established, FIN Wait, etc.
+- Operations: Open, Close, Send, Receive
+
+---
+
+## Comparison: Without vs. With State Pattern
+
+### Without State Pattern (Monolithic Class)
+
+```cpp
+class VendingMachine {
+    enum State { NO_COIN, HAS_COIN, DISPENSE, SOLD_OUT };
+    State currentState;
+    
+public:
+    void insertCoin(int coin) {
+        switch(currentState) {
+            case NO_COIN:
+                // insert coin logic
+                currentState = HAS_COIN;
+                break;
+            case HAS_COIN:
+                // add coin logic
+                break;
+            case DISPENSE:
+                cout << "Please wait";
+                break;
+            case SOLD_OUT:
+                cout << "Sold out";
+                break;
+        }
+    }
+    
+    void selectItem() {
+        switch(currentState) {
+            case NO_COIN:
+                cout << "Insert coin first";
+                break;
+            case HAS_COIN:
+                // select logic
+                currentState = DISPENSE;
+                break;
+            // ... more cases
+        }
+    }
+    // ... more methods with switch statements
+};
+```
+
+**Problems:**
+- Large switch/if-else blocks
+- Violates Open/Closed Principle
+- Hard to maintain and extend
+- State transitions scattered throughout code
+
+### With State Pattern
+
+```cpp
+// Each state is a separate class
+// Transitions are explicit and localized
+// Adding new state = adding new class, no modifications to existing code
+```
+
+**Benefits:**
+- Clean separation of concerns
+- Easy to add new states
+- State transitions are explicit
+- Each state class is focused and testable
+
+---
+
+## Summary
+
+| Aspect | Description |
+|--------|-------------|
+| **Type** | Behavioral Design Pattern |
+| **Purpose** | Allow object to change behavior based on internal state |
+| **Key Components** | Context, Abstract State, Concrete States |
+| **Main Benefit** | Eliminates complex conditional logic |
+| **When to Use** | Limited states + limited operations + state-dependent behavior |
+| **Common Examples** | Vending Machine, ATM, Document Editor, Traffic Light |
+
+The State Design Pattern transforms state-dependent behavior from complex conditionals into a clean, maintainable class hierarchy where each state encapsulates its own rules and transitions.
+
+---
+
+## 33. Build Tic Tac Toe Game | UML + Code (52:11)
 
 summaries system design tutorial transcript in details along with useful code examples and diagrams
