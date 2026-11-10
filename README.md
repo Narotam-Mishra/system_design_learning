@@ -21476,4 +21476,5 @@ The State Design Pattern transforms state-dependent behavior from complex condit
 
 ## 33. Build Tic Tac Toe Game | UML + Code (52:11)
 
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
