@@ -29,7 +29,7 @@ private:
     VendingState* currentState;
     int itemCount;
     int itemPrice;
-    int  insertedCoins;
+    int insertedCoins;
     
     // State objects (we'll initialize these)
     VendingState* noCoinState;
