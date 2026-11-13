@@ -21476,4 +21476,480 @@ The State Design Pattern transforms state-dependent behavior from complex condit
 
 ## 33. Build Tic Tac Toe Game | UML + Code (52:11)
 
+## 1. Introduction
+
+The tutorial builds a **low-level design (LLD) of Tic-Tac-Toe** — a common interview question (alongside Snake & Ladders). The goal is to design a **scalable, extensible** game with clean OOP and design patterns.
+
+---
+
+## 2. Requirements Analysis
+
+### Functional Requirements
+
+| # | Requirement | Detail |
+|---|-------------|--------|
+| 1 | **Scalable board size** | Not fixed 3×3. Must support 4×4, 5×5, … n×n |
+| 2 | **Standard rules, extensible** | Default rules: win = 3-in-a-row (horizontal/vertical/diagonal). Must allow custom rules later (e.g., "diagonal wins not allowed", "need 4-in-a-row", etc.) |
+| 3 | **On-app notifications** | When a player moves, both players get an in-app notification (e.g., "P1 played at (1,1)", "P1 wins"). Not email/SMS — only in-app display |
+
+### Implied Requirements
+- Two players (extendable to more)
+- Track score per player
+- Draw detection
+- Factory to create game objects
+
+---
+
+## 3. UML Design (Top-Down Approach)
+
+The tutorial uses **top-down design**: start from the biggest class (`Game`), then create smaller dependent classes as needed.
+
+### 3.1 High-Level Class Diagram
+
+```
+                    ┌─────────────────────┐
+                    │    GameFactory      │
+                    │─────────────────────│
+                    │ + createGame(type,  │
+                    │   boardSize): Game  │
+                    └──────────┬──────────┘
+                               │ creates
+                               ▼
+┌──────────────────────────────────────────────────────────┐
+│                          Game                            │
+│──────────────────────────────────────────────────────────│
+│ - board : Board                                          │
+│ - players : Deque<Player>                                │
+│ - rules : Rule                                           │
+│ - observers : List<IObserver>                            │
+│ - gameOver : bool                                        │
+│──────────────────────────────────────────────────────────│
+│ + addPlayer(Player)                                      │
+│ + addObserver(IObserver)                                 │
+│ + notifyObservers(string msg)                            │
+│ + setRule(Rule)                                          │
+│ + play()                                                 │
+└───────┬──────────────────┬──────────────────┬────────────┘
+        │ has              │ has              │ has
+        ▼                  ▼                  ▼
+┌───────────────┐  ┌───────────────┐  ┌──────────────────┐
+│    Board      │  │    Player     │  │    Rule          │
+│───────────────│  │───────────────│  │  (abstract)      │
+│ - grid:       │  │ - id          │  │──────────────────│
+│   vector<     │  │ - name        │  │ + checkWin()     │
+│   vector<     │  │ - symbol      │  │ + checkDraw()    │
+│   Symbol>>    │  │ - score       │  │ + isValidMove()  │
+│ - size        │  │───────────────│  └────────┬─────────┘
+│ - emptyCell   │  │ + getSymbol() │           │
+│───────────────│  │ + increment() │           ▼
+│ + isCellEmpty │  └───────────────┘  ┌──────────────────┐
+│ + getCell     │                     │  StandardRule    │
+│ + placeMark   │                     │  (concrete)      │
+│ + display     │                     └──────────────────┘
+└───────┬───────┘
+        │ uses
+        ▼
+┌───────────────┐        ┌──────────────────┐
+│   Symbol      │◄───────│   IObserver      │
+│───────────────│        │  (abstract)      │
+│ - mark: char  │        │──────────────────│
+│───────────────│        │ + update(msg)    │
+│ + getMark()   │        └────────┬─────────┘
+└───────────────┘                 │
+                                  ▼
+                         ┌──────────────────┐
+                         │ ConsoleNotifier  │
+                         │  (concrete)      │
+                         └──────────────────┘
+```
+
+### 3.2 Relationships
+
+| Relationship | Type | Reason |
+|---|---|---|
+| `Game` → `Board` | Composition | Board exists only within a game |
+| `Game` → `Rule` | Composition | Rules bound strictly to game |
+| `Game` → `Deque<Player>` | Aggregation | 1-to-many players |
+| `Game` → `List<IObserver>` | Aggregation | 1-to-many observers |
+| `Board` → `Symbol[][]` | Composition | Grid of symbols |
+| `StandardRule` → `Rule` | Inheritance | Concrete strategy |
+| `ConsoleNotifier` → `IObserver` | Inheritance | Concrete observer |
+| `GameFactory` → `Game` | Creates | Factory pattern |
+
+### 3.3 Design Patterns Used
+
+| Pattern | Where |
+|---|---|
+| **Strategy** | `Rule` (abstract) → `StandardRule` (concrete) — swap rules at runtime |
+| **Observer** | `Game` (observable) → `IObserver` → `ConsoleNotifier` |
+| **Factory** | `GameFactory.createGame(type, size)` |
+| **Singleton-ish** (optional) | Board size, empty symbol |
+
+---
+
+## 4. Detailed Class Design + Code
+
+### 4.1 `Symbol`
+
+Simple class holding one character. `_` is reserved as the **empty symbol** (avoids `null` pointer checks).
+
+```cpp
+class Symbol {
+    char mark;
+public:
+    Symbol(char m) : mark(m) {}
+    char getMark() const { return mark; }
+};
+```
+
+**Why empty symbol instead of `nullptr`?** Null pointers cause `NullPointerException` issues; using a sentinel `Symbol('_')` makes emptiness explicit and safe.
+
+---
+
+### 4.2 `Board`
+
+Responsible **only** for managing cells (Single Responsibility Principle). It does **not** know game rules.
+
+```cpp
+class Board {
+    int size;
+    vector<vector<Symbol>> grid;
+    Symbol emptyCell;
+
+public:
+    Board(int s) : size(s), emptyCell(Symbol('_')) {
+        grid.assign(size, vector<Symbol>(size, emptyCell));
+    }
+
+    bool isValid(int r, int c) const {
+        return r >= 0 && r < size && c >= 0 && c < size;
+    }
+
+    bool isCellEmpty(int r, int c) const {
+        if (!isValid(r, c)) return false;
+        return grid[r][c].getMark() == emptyCell.getMark();
+    }
+
+    bool placeMark(int r, int c, Symbol s) {
+        if (!isValid(r, c)) return false;
+        if (!isCellEmpty(r, c)) return false;
+        grid[r][c] = s;
+        return true;
+    }
+
+    Symbol getCell(int r, int c) const { return grid[r][c]; }
+    int getSize() const { return size; }
+    Symbol getEmptyCell() const { return emptyCell; }
+
+    void display() const {
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < size; j++)
+                cout << grid[i][j].getMark() << " ";
+            cout << "\n";
+        }
+    }
+};
+```
+
+---
+
+### 4.3 `Player`
+
+```cpp
+class Player {
+    int id;
+    string name;
+    Symbol symbol;
+    int score;
+public:
+    Player(int id, string n, Symbol s) : id(id), name(n), symbol(s), score(0) {}
+    Symbol getSymbol() const { return symbol; }
+    string getName() const { return name; }
+    int getScore() const { return score; }
+    void incrementScore() { score++; }
+};
+```
+
+---
+
+### 4.4 `Rule` (Abstract Strategy) + `StandardRule`
+
+```cpp
+// Abstract strategy
+class Rule {
+public:
+    virtual bool checkWin(Board& board, Symbol symbol) = 0;
+    virtual bool checkDraw(Board& board) = 0;
+    virtual bool isValidMove(Board& board, int row, int col) = 0;
+    virtual ~Rule() {}
+};
+
+// Concrete standard implementation
+class StandardRule : public Rule {
+public:
+    bool isValidMove(Board& board, int r, int c) override {
+        return board.isCellEmpty(r, c);
+    }
+
+    bool checkWin(Board& board, Symbol symbol) override {
+        int n = board.getSize();
+        char m = symbol.getMark();
+
+        // Rows
+        for (int i = 0; i < n; i++) {
+            bool win = true;
+            for (int j = 0; j < n; j++)
+                if (board.getCell(i, j).getMark() != m) { win = false; break; }
+            if (win) return true;
+        }
+        // Columns
+        for (int j = 0; j < n; j++) {
+            bool win = true;
+            for (int i = 0; i < n; i++)
+                if (board.getCell(i, j).getMark() != m) { win = false; break; }
+            if (win) return true;
+        }
+        // Main diagonal
+        bool win = true;
+        for (int i = 0; i < n; i++)
+            if (board.getCell(i, i).getMark() != m) { win = false; break; }
+        if (win) return true;
+
+        // Anti-diagonal
+        win = true;
+        for (int i = 0; i < n; i++)
+            if (board.getCell(i, n - 1 - i).getMark() != m) { win = false; break; }
+        return win;
+    }
+
+    bool checkDraw(Board& board) override {
+        int n = board.getSize();
+        for (int i = 0; i < n; i++)
+            for (int j = 0; j < n; j++)
+                if (board.isCellEmpty(i, j)) return false; // still a move possible
+        return true; // all filled, no winner → draw
+    }
+};
+```
+
+> **Extensibility**: To disable diagonal wins, subclass `StandardRule` and override `checkWin` to skip diagonals.
+
+---
+
+### 4.5 Observer Pattern
+
+```cpp
+// Abstract Observer
+class IObserver {
+public:
+    virtual void update(const string& message) = 0;
+    virtual ~IObserver() {}
+};
+
+// Concrete observer: shows in-app notification on console
+class ConsoleNotifier : public IObserver {
+public:
+    void update(const string& message) override {
+        cout << "[NOTIFICATION] " << message << "\n";
+    }
+};
+```
+
+`Game` becomes the **Observable** and holds a list of observers.
+
+---
+
+### 4.6 `Game` — Orchestrator
+
+```cpp
+class Game {
+    Board board;
+    deque<Player> players;       // deque → rotates turns easily
+    Rule* rules;
+    vector<IObserver*> observers;
+    bool gameOver;
+
+public:
+    Game(int boardSize)
+        : board(boardSize), rules(nullptr), gameOver(false) {}
+
+    void addPlayer(const Player& p) { players.push_back(p); }
+    void addObserver(IObserver* o) { observers.push_back(o); }
+    void setRule(Rule* r) { rules = r; }
+
+    void notify(const string& msg) {
+        for (auto* o : observers) o->update(msg);
+    }
+
+    void play() {
+        if (players.size() < 2) {
+            cout << "Need at least 2 players\n";
+            return;
+        }
+        notify("Tic-Tac-Toe game started!");
+
+        while (!gameOver) {
+            Player current = players.front();
+            players.pop_front();
+
+            board.display();
+            int row, col;
+            cout << current.getName() << "'s turn ("
+                 << current.getSymbol().getMark() << "). Enter row col: ";
+            cin >> row >> col;
+
+            if (!rules->isValidMove(board, row, col)) {
+                cout << "Invalid move. Try again.\n";
+                players.push_front(current);  // same player retries
+                continue;
+            }
+
+            board.placeMark(row, col, current.getSymbol());
+            notify(current.getName() + " played at (" +
+                   to_string(row) + "," + to_string(col) + ")");
+
+            if (rules->checkWin(board, current.getSymbol())) {
+                board.display();
+                current.incrementScore();
+                notify(current.getName() + " wins!");
+                gameOver = true;
+            } else if (rules->checkDraw(board)) {
+                board.display();
+                notify("It's a draw!");
+                gameOver = true;
+            } else {
+                players.push_back(current);  // rotate turn
+            }
+        }
+    }
+};
+```
+
+### Why `deque<Player>` instead of `list`?
+
+- `pop_front()` gives current player, `push_back()` rotates them to the end.
+- Works for **2 players** and scales naturally to **3, 4, … N players**.
+
+---
+
+### 4.7 `GameFactory`
+
+```cpp
+enum class GameType { STANDARD };
+
+class GameFactory {
+public:
+    static Game* createGame(GameType type, int boardSize) {
+        Game* g = new Game(boardSize);
+        if (type == GameType::STANDARD) {
+            g->setRule(new StandardRule());
+            return g;
+        }
+        return nullptr;
+    }
+};
+```
+
+---
+
+### 4.8 Client / `main`
+
+```cpp
+int main() {
+    int boardSize;
+    cout << "Enter board size: ";
+    cin >> boardSize;
+
+    Game* game = GameFactory::createGame(GameType::STANDARD, boardSize);
+
+    game->addObserver(new ConsoleNotifier());
+
+    game->addPlayer(Player(1, "Aditya",  Symbol('X')));
+    game->addPlayer(Player(2, "Harshita", Symbol('O')));
+
+    game->play();
+    return 0;
+}
+```
+
+---
+
+## 5. End-to-End Flow (Play Method)
+
+```
+main()
+  ├─ GameFactory.createGame(STANDARD, n)
+  │     ├─ new Game(n)
+  │     └─ game.setRule(new StandardRule())
+  ├─ game.addObserver(new ConsoleNotifier())
+  ├─ game.addPlayer(P1, P2)
+  └─ game.play()
+        │
+        ▼
+   notify("game started")
+        │
+        ▼
+   while (!gameOver):
+     ├─ current = players.front(); pop_front()
+     ├─ board.display(); read (row, col)
+     ├─ rules.isValidMove(board, row, col)?
+     │     ├─ NO  → print "invalid", push_front(current), continue
+     │     └─ YES ↓
+     ├─ board.placeMark(row, col, current.symbol)
+     ├─ notify("Px played at (r,c)")
+     ├─ rules.checkWin(board, symbol)?
+     │     ├─ YES → display, score++, notify("Px wins!"), gameOver=true
+     │     └─ NO ↓
+     ├─ rules.checkDraw(board)?
+     │     ├─ YES → display, notify("draw"), gameOver=true
+     │     └─ NO  → players.push_back(current)   // rotate turn
+     └─ loop
+```
+
+**Sample console output** (from tutorial):
+
+```
+_ _ _
+_ _ _
+_ _ _
+Aditya's turn (X). Enter row col: 0 0
+X _ _
+_ _ _
+_ _ _
+Harshita's turn (O). Enter row col: 0 2
+X _ O
+_ _ _
+_ _ _
+...
+[NOTIFICATION] Aditya wins!
+```
+
+---
+
+## 6. Requirement → Design Mapping
+
+| Requirement | Fulfilled By |
+|---|---|
+| Scalable board size | `Board(int size)`, `vector<vector<Symbol>>` |
+| Standard + extensible rules | `Rule` abstract + `StandardRule` (Strategy pattern) |
+| On-app notifications | `IObserver` + `ConsoleNotifier` (Observer pattern) |
+| Multi-player extensibility | `deque<Player>` |
+| Clean object creation | `GameFactory` |
+
+---
+
+## 7. Key Design Takeaways
+
+1. **Single Responsibility** — `Board` only manages cells; `Rule` only decides win/draw/validity; `Game` orchestrates.
+2. **Strategy pattern** for rules lets you swap `StandardRule` with e.g. `NoDiagonalRule` without touching `Game`.
+3. **Observer pattern** decouples notification delivery from game logic — add email/SMS/loggers later by implementing `IObserver`.
+4. **Factory pattern** centralizes creation, making it easy to add new game types (e.g., `GameType::CUSTOM`).
+5. **Empty symbol sentinel** avoids null-pointer checks.
+6. **`deque` rotation** elegantly handles turn order for any number of players.
+7. **Composition vs aggregation** — `Rule` and `Board` are *composed* (strictly tied to `Game`); `Player`/`Observer` are *aggregated* (can outlive a game).
+
+---
+
+## 34. 
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
