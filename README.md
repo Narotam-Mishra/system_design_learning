@@ -21950,6 +21950,748 @@ _ _ _
 
 ---
 
-## 34. 
+## 34. Build Snake and Ladder Game | UML + Code (1:08:20)
+
+---
+
+## 1. Introduction & Goal
+
+The tutorial builds a **complete LLD of the classic Snake & Ladder game** — the same structure as the earlier Tic-Tac-Toe LLD video, but with different rules and a few new classes.
+
+**Why this is an interview favourite:** it is asked very commonly at the fresher level ("design Snake & Ladder"), and it exercises *almost every* design concept: Strategy, Observer, Factory, abstract classes, composition, extensibility.
+
+The approach used throughout is **Top-Down Design**: start with the biggest orchestrator object (`Game`), then discover smaller objects it needs (`Board`, `Dice`, `Player`, `Rule`, …).
+
+---
+
+## 2. Requirements (the "contract" for the design)
+
+| # | Requirement | Meaning |
+|---|---|---|
+| R1 | **Board size must be scalable** | Not hard-coded to 10×10 / 100 cells. Default = 100, but n×n must work. |
+| R2 | **Standard game rules + extensible** | Ship standard Snake & Ladder rules, but allow plugging new rule sets. |
+| R3 | **Multiple game setups** | `Standard setup`, `Random setup` (with Easy/Medium/Hard sub-levels), `Custom setup` (user picks counts and/or exact positions). |
+| R4 | **Notifications** | In-app notifications → a `ConsoleNotifier` that prints to console (same as Tic-Tac-Toe LLD). |
+
+---
+
+## 3. The Key Design Insight (very important in interviews)
+
+> **The board is NOT a 2D matrix. It's not even a 1D array. It's just a map.**
+
+- Visually the board is printed as a 2D snake-like grid (1–10 on bottom row, 11–20 above it, etc.), but that's **only a rendering concern**.
+- Backend values are simply `1 … n`. A **2D array gives you no benefit**, and even a **1D array is wasteful** — you'd allocate `n` slots where almost all are empty.
+- What you actually need is: *"given a cell number, is there a snake or a ladder on it?"* → `unordered_map<int, BoardEntity*>`.
+- The full list of snakes/ladders is kept in a `vector<BoardEntity*>` for display/iteration.
+
+```cpp
+unordered_map<int, BoardEntity*> entityMap;  // cell -> snake/ladder (keyed by START cell)
+vector<BoardEntity*> entities;               // full list, for display
+int size;                                    // e.g. 100
+```
+
+Because the map is keyed by the entity's **start** cell:
+- For a **Snake**, start = head (where the bite happens) → end = tail (drops you down).
+- For a **Ladder**, start = bottom (where you step on) → end = top (takes you up).
+- You never care about the snake's tail cell or the ladder's top cell as a "trigger".
+
+---
+
+## 4. UML — High-Level Picture (Top-Down)
+
+```
+                        ┌────────────────────────┐
+                        │      GameFactory       │
+                        │────────────────────────│
+                        │+createStandardGame()   │
+                        │+createRandomGame()     │
+                        │+createCustomGame()     │
+                        └───────────┬────────────┘
+                                    │ «creates»
+                                    ▼
+ ┌──────────┐ 1      1 ┌────────────────────────────┐ 1     1 ┌──────────────┐
+ │   Dice   │◄─────────│            Game            │────────►│    Board     │
+ └──────────┘          │────────────────────────────│         └──────┬───────┘
+                       │ - board                    │                │ 1
+                       │ - dice                     │                │ ◆ (strong
+                       │ - players : queue<Player*> │                │  composition)
+                       │ - rules   : RuleStrategy*  │                ▼ 1..*
+                       │ - observers: vector<IObs*> │        ┌──────────────────┐
+                       │ - isGameOver : bool        │        │ «abstract»       │
+                       │────────────────────────────│        │  BoardEntity     │
+                       │ + addPlayer()              │        │ - start, end     │
+                       │ + addObserver()            │        │ + display()=0    │
+                       │ + notify()                 │        │ + getName()=0    │
+                       │ + displayPlayerPosition()  │        └───┬──────────┬───┘
+                       │ + play()                   │            │          │
+                       └───┬──────────┬─────────────┘            ▼          ▼
+                           │ 1..*     │ 1                    ┌────────┐ ┌────────┐
+                           ▼          ▼                      │ Snake  │ │ Ladder │
+                    ┌───────────┐  ┌──────────────────┐      └────────┘ └────────┘
+                    │  Player   │  │ «abstract»       │
+                    │ - id      │  │  RuleStrategy    │
+                    │ - name    │  │ +isValidMove()   │
+                    │ - position│  │ +calcNewPos()    │
+                    │ - score   │  │ +checkWinCond()  │
+                    └───────────┘  └────────┬─────────┘
+                                            ▼
+                                ┌──────────────────────────┐
+                                │ StandardSnakeAndLadder   │
+                                │ Rules                    │
+                                └──────────────────────────┘
+
+  ┌──────────────────┐            ┌──────────────────────┐
+  │ «abstract»       │ 1     1..* │ «abstract»           │
+  │ BoardSetupStrategy │◄─────────│  Board               │
+  │ +setupBoard(B&)=0│            │  +setupBoard(strat*) │
+  └───┬────────┬─────┘            └──────────────────────┘
+      │        │
+      ▼        ▼                       ▼ (3 concrete strategies)
+ ┌──────────┐ ┌────────────────┐ ┌──────────────────┐
+ │ Standard │ │ RandomSetup    │ │ CustomCountSetup │
+ │ Setup    │ │ (Difficulty    │ │ (counts + exact  │
+ │          │ │  EASY/MED/HARD)│ │  positions)      │
+ └──────────┘ └────────────────┘ └──────────────────┘
+
+  ┌────────────────┐                 ┌───────────────────────────┐
+  │ «interface»    │ 1          0..* │                           │
+  │  IObserver     │◄────────────────│  Game (Observable)        │
+  │ +update(msg)=0 │                 └───────────────────────────┘
+  └───────┬────────┘
+          ▼
+ ┌──────────────────────────┐
+ │ SnakeAndLadderConsole    │
+ │ Notifier  (+update)      │
+ └──────────────────────────┘
+```
+
+**Strong composition (◆)** — the two the tutorial highlights:
+- `Game ◆— RuleStrategy` → rules can't exist without a game.
+- `Board ◆— BoardEntity` → snakes/ladders can't exist without a board.
+
+---
+
+## 5. Class-by-Class Design + Code
+
+### 5.1 `BoardEntity` (abstract) → `Snake`, `Ladder`
+
+Snake and Ladder do the **same job** — move a player from one cell to another. Only the direction differs. So we unify them under a parent instead of keeping two unrelated lists.
+
+```cpp
+class BoardEntity {
+protected:
+    int start;   // Snake: head;  Ladder: bottom
+    int end;     // Snake: tail;  Ladder: top
+public:
+    BoardEntity(int s, int e) : start(s), end(e) {}
+    virtual ~BoardEntity() {}
+    int getStart() const { return start; }
+    int getEnd()   const { return end; }
+    virtual void   display()  const = 0;
+    virtual string getName()  const = 0;   // "Snake" or "Ladder"
+};
+
+class Snake : public BoardEntity {
+public:
+    Snake(int head, int tail) : BoardEntity(head, tail) {
+        if (tail >= head) cout << "Invalid Snake: tail must be below head\n";
+    }
+    void   display() const override { cout << "Snake  " << start << " -> " << end << "\n"; }
+    string getName() const override { return "Snake"; }
+};
+
+class Ladder : public BoardEntity {
+public:
+    Ladder(int bottom, int top) : BoardEntity(bottom, top) {
+        if (top <= bottom) cout << "Invalid Ladder: top must be above bottom\n";
+    }
+    void   display() const override { cout << "Ladder " << start << " -> " << end << "\n"; }
+    string getName() const override { return "Ladder"; }
+};
+```
+
+> `getName()` exists purely so the game loop can decide *"was it a snake or a ladder?"* when sending notifications.
+
+---
+
+### 5.2 `Board`
+
+```cpp
+class BoardSetupStrategy;   // forward declaration (C++ needs it)
+
+class Board {
+    int size;
+    vector<BoardEntity*> entities;
+    unordered_map<int, BoardEntity*> entityMap;
+
+public:
+    Board(int size) : size(size) {}
+    ~Board() { for (auto e : entities) delete e; }
+
+    int getSize() const { return size; }
+
+    bool canAddEntity(int pos) const {
+        return entityMap.find(pos) == entityMap.end();   // O(1)
+    }
+
+    void addEntity(BoardEntity* e) {
+        if (!canAddEntity(e->getStart())) return;
+        entities.push_back(e);
+        entityMap[e->getStart()] = e;                    // key = START cell
+    }
+
+    BoardEntity* getEntity(int pos) {                    // O(1) lookup
+        auto it = entityMap.find(pos);
+        return (it == entityMap.end()) ? nullptr : it->second;
+    }
+
+    void setupBoard(BoardSetupStrategy* strategy);       // defined later
+
+    void display() const {
+        cout << "Board size: " << size << "\n";
+        for (auto e : entities) e->display();
+    }
+};
+```
+
+**Methods and why they exist:**
+
+| Method | Purpose |
+|---|---|
+| `canAddEntity(pos)` | Prevents putting a ladder's bottom on a cell that already holds a snake's head, etc. Used by every setup strategy. |
+| `addEntity(e)` | Adds to both the vector (for display) and the map (for O(1) lookup). |
+| `getEntity(pos)` | Used at runtime by `RuleStrategy::calculateNewPosition` to see if the destination cell has a snake/ladder. |
+| `setupBoard(strategy)` | Delegates board population to the chosen strategy — **Strategy Pattern**. |
+| `display()` | Prints all snakes and ladders. |
+
+The board is deliberately a **"dumb object"** (Single Responsibility): it only manages its own cells/entities. It knows **nothing** about winning, valid moves, or dice.
+
+---
+
+### 5.3 Setup Strategies (`BoardSetupStrategy`)
+
+```cpp
+class BoardSetupStrategy {
+public:
+    virtual void setupBoard(Board& board) = 0;
+    virtual ~BoardSetupStrategy() {}
+};
+```
+
+**a) Standard**
+
+```cpp
+class StandardSetupStrategy : public BoardSetupStrategy {
+public:
+    void setupBoard(Board& board) override {
+        if (board.getSize() != 100) {
+            cout << "Standard setup only works for 10x10 (100 cells)\n";
+            return;
+        }
+        vector<pair<int,int>> snakes  = {{99,54},{95,75},{93,73},{87,24},{62,19},
+                                         {64,60},{17,7},{54,34},{48,26},{44,22}};
+        vector<pair<int,int>> ladders = {{4,14},{9,31},{20,38},{28,84},{40,59},
+                                         {51,67},{63,81},{71,91},{80,100}};
+        for (auto& p : snakes)  board.addEntity(new Snake(p.first, p.second));
+        for (auto& p : ladders) board.addEntity(new Ladder(p.first, p.second));
+    }
+};
+```
+
+**b) Random (with nested `Difficulty` enum)**
+
+```cpp
+class RandomSetupStrategy : public BoardSetupStrategy {
+public:
+    enum class Difficulty { EASY, MEDIUM, HARD };
+
+private:
+    Difficulty difficulty;
+
+    // try up to 50 times to place one snake
+    void addRandomSnake(Board& board, int boardSize) {
+        int attempts = 0;
+        while (attempts++ < 50) {
+            int head = rand() % (boardSize - 1) + 2;
+            int tail = rand() % (head - 1) + 1;          // tail < head
+            if (board.canAddEntity(head) && board.canAddEntity(tail)) {
+                board.addEntity(new Snake(head, tail));
+                return;
+            }
+        }
+    }
+
+    void addRandomLadder(Board& board, int boardSize) {
+        int attempts = 0;
+        while (attempts++ < 50) {
+            int bottom = rand() % (boardSize - 2) + 2;
+            int top    = bottom + 1 + rand() % (boardSize - bottom - 1);
+            if (board.canAddEntity(bottom) && board.canAddEntity(top)) {
+                board.addEntity(new Ladder(bottom, top));
+                return;
+            }
+        }
+    }
+
+    void setupWithProbability(Board& board, double snakeProbability) {
+        int totalEntities = board.getSize() / 10;        // ~10% cells occupied
+        for (int i = 0; i < totalEntities; i++) {
+            double p = (double)rand() / RAND_MAX;
+            if (p < snakeProbability) addRandomSnake(board, board.getSize());
+            else                      addRandomLadder(board, board.getSize());
+        }
+    }
+
+public:
+    RandomSetupStrategy(Difficulty d) : difficulty(d) {}
+
+    void setupBoard(Board& board) override {
+        switch (difficulty) {
+            case Difficulty::EASY:   setupWithProbability(board, 0.3); break; // 30% snakes, 70% ladders
+            case Difficulty::MEDIUM: setupWithProbability(board, 0.5); break; // 50-50
+            case Difficulty::HARD:   setupWithProbability(board, 0.7); break; // 70% snakes, 30% ladders
+        }
+    }
+};
+```
+
+> **Why 50 attempts?** `canAddEntity()` may keep returning `false` for random positions. A retry cap avoids infinite loops while still (almost always) placing the entity.
+
+**c) Custom**
+
+```cpp
+class CustomCountSetupStrategy : public BoardSetupStrategy {
+    int numSnakes, numLadders;
+    bool isRandom;                                     // true → user gives only counts
+    vector<pair<int,int>> snakePositions;              // false → user gives exact start/end
+    vector<pair<int,int>> ladderPositions;
+
+public:
+    CustomCountSetupStrategy(int s, int l, bool randomize)
+        : numSnakes(s), numLadders(l), isRandom(randomize) {}
+
+    void addSnakePosition(int start, int end)  { snakePositions.push_back({start, end}); }
+    void addLadderPosition(int start, int end) { ladderPositions.push_back({start, end}); }
+
+    void setupBoard(Board& board) override {
+        if (isRandom) {
+            int snakesAdded = 0, laddersAdded = 0;
+            while (snakesAdded < numSnakes) {
+                int head = rand() % (board.getSize() - 1) + 2;
+                int tail = rand() % (head - 1) + 1;
+                if (board.canAddEntity(head) && board.canAddEntity(tail)) {
+                    board.addEntity(new Snake(head, tail));
+                    snakesAdded++;
+                }
+            }
+            while (laddersAdded < numLadders) {
+                int bottom = rand() % (board.getSize() - 2) + 2;
+                int top    = bottom + 1 + rand() % (board.getSize() - bottom - 1);
+                if (board.canAddEntity(bottom) && board.canAddEntity(top)) {
+                    board.addEntity(new Ladder(bottom, top));
+                    laddersAdded++;
+                }
+            }
+        } else {
+            for (auto& p : snakePositions)
+                if (board.canAddEntity(p.first)) board.addEntity(new Snake(p.first, p.second));
+            for (auto& p : ladderPositions)
+                if (board.canAddEntity(p.first)) board.addEntity(new Ladder(p.first, p.second));
+        }
+    }
+};
+```
+
+> Note: the user gives **only start/end indices** — the game constructs `Snake`/`Ladder` objects internally. The client never builds entities.
+
+---
+
+### 5.4 `Board::setupBoard` definition (after strategies exist)
+
+```cpp
+void Board::setupBoard(BoardSetupStrategy* strategy) {
+    strategy->setupBoard(*this);        // "here, set yourself up"
+}
+```
+
+This is the classic **Strategy pattern**: `Board` holds no setup logic; it just delegates.
+
+---
+
+### 5.5 `Dice`
+
+```cpp
+class Dice {
+    int faces;
+public:
+    Dice(int faces = 6) : faces(faces) {}
+    int roll() { return rand() % faces + 1; }   // 1..faces  (scalable: 6, 10, …)
+};
+```
+
+---
+
+### 5.6 `Player`
+
+```cpp
+class Player {
+    int id;
+    string name;
+    int position;
+    int score;
+public:
+    Player(int id, string name) : id(id), name(name), position(0), score(0) {}
+
+    int getId() const { return id; }
+    string getName() const { return name; }
+    int getPosition() const { return position; }
+    void setPosition(int p) { position = p; }
+    int getScore() const { return score; }
+    void incrementScore() { score++; }
+};
+```
+
+---
+
+### 5.7 `RuleStrategy` (abstract) → `StandardSnakeAndLadderRules`
+
+**Why a separate Rule class?** The `Board` is dumb — it doesn't know how to win, what a valid move is, or what happens on a snake/ladder. Rules are a *strategy* so they can be swapped/extended without touching `Board` or `Game`.
+
+```cpp
+class RuleStrategy {
+public:
+    // A move is invalid only when it overshoots the last cell
+    virtual bool isValidMove(int position, int diceValue, int boardSize) = 0;
+
+    // Applies snake/ladder on the intermediate cell
+    virtual int calculateNewPosition(int position, int diceValue, Board& board) = 0;
+
+    virtual bool checkWinCondition(int position, int boardSize) = 0;
+
+    virtual ~RuleStrategy() {}
+};
+```
+
+```cpp
+class StandardSnakeAndLadderRules : public RuleStrategy {
+public:
+    bool isValidMove(int position, int diceValue, int boardSize) override {
+        return position + diceValue <= boardSize;      // exact roll needed at the end
+    }
+
+    int calculateNewPosition(int position, int diceValue, Board& board) override {
+        int newPos = position + diceValue;
+        BoardEntity* entity = board.getEntity(newPos);
+        if (entity != nullptr) return entity->getEnd();   // snake → down, ladder → up
+        return newPos;
+    }
+
+    bool checkWinCondition(int position, int boardSize) override {
+        return position == boardSize;                     // landed exactly on last cell
+    }
+};
+```
+
+**Valid-move logic explained:** if the board ends at 100 and you're on 98, only a **2** is valid. A 3, 4, 5 or 6 overshoots → move rejected, dice must be rolled again. (There's **no draw condition** in Snake & Ladder — someone always wins.)
+
+---
+
+### 5.8 Observer chain (notifications)
+
+```cpp
+class IObserver {
+public:
+    virtual void update(const string& message) = 0;
+    virtual ~IObserver() {}
+};
+
+class SnakeAndLadderConsoleNotifier : public IObserver {
+public:
+    void update(const string& message) override {
+        cout << "[NOTIFICATION] " << message << "\n";
+    }
+};
+```
+
+`Game` is the **Observable** and keeps `vector<IObserver*> observers` — same pattern as the Tic-Tac-Toe LLD.
+
+---
+
+### 5.9 `Game` (the orchestrator)
+
+```cpp
+class Game {
+    Board* board;
+    Dice* dice;
+    queue<Player*> players;                // round-robin turn order
+    RuleStrategy* rules;
+    vector<IObserver*> observers;
+    bool isGameOver;
+
+    void notify(const string& msg) {
+        for (auto o : observers) o->update(msg);
+    }
+
+public:
+    Game(Board* b, Dice* d) : board(b), dice(d), isGameOver(false) {
+        rules = new StandardSnakeAndLadderRules();   // (could come from a factory)
+    }
+
+    void addPlayer(Player* p)     { players.push(p); }
+    void addObserver(IObserver* o){ observers.push_back(o); }
+
+    void displayPlayerPosition(Player* p) {
+        cout << p->getName() << " is at position " << p->getPosition() << "\n";
+    }
+
+    void play();
+};
+```
+
+> The **`queue<Player*>`** is deliberate: pop from front → play → push to back = automatic round-robin for *any* number of players. No manual "current player index" bookkeeping.
+
+---
+
+### 5.10 `Game::play()` — the full game loop
+
+```cpp
+void Game::play() {
+    if (players.size() < 2) { cout << "At least 2 players required\n"; return; }
+
+    notify("Game started!");
+    board->display();
+
+    while (!isGameOver) {
+        Player* current = players.front();
+        players.pop();
+
+        cout << current->getName() << "'s turn. Press Enter to roll the dice...";
+        cin.ignore(); cin.get();                     // pause so humans can follow
+
+        int diceValue = dice->roll();
+        cout << "Dice rolled: " << diceValue << "\n";
+
+        int currentPos = current->getPosition();
+
+        // 1) Valid move?
+        if (!rules->isValidMove(currentPos, diceValue, board->getSize())) {
+            cout << "Invalid move — you need exactly "
+                 << (board->getSize() - currentPos) << " to win. Roll again next turn.\n";
+            players.push(current);                   // turn is lost
+            continue;
+        }
+
+        // 2) Compute new position (applies snake/ladder)
+        int intermediatePos = currentPos + diceValue;
+        int newPos = rules->calculateNewPosition(currentPos, diceValue, *board);
+        current->setPosition(newPos);
+
+        // 3) Notify about snake / ladder encountered
+        BoardEntity* entity = board->getEntity(intermediatePos);
+        if (entity != nullptr) {
+            if (entity->getName() == "Snake")
+                notify(current->getName() + " was bitten by a Snake! " +
+                       to_string(intermediatePos) + " -> " + to_string(newPos));
+            else
+                notify(current->getName() + " climbed a Ladder! " +
+                       to_string(intermediatePos) + " -> " + to_string(newPos));
+        }
+
+        displayPlayerPosition(current);
+        board->display();
+
+        // 4) Win check
+        if (rules->checkWinCondition(newPos, board->getSize())) {
+            cout << current->getName() << " WINS! Game over.\n";
+            notify(current->getName() + " won the game!");
+            isGameOver = true;
+            // player NOT pushed back — loop exits
+        } else {
+            players.push(current);                   // back of the queue
+        }
+    }
+}
+```
+
+---
+
+### 5.11 `GameFactory`
+
+Three pre-baked creation paths so the client doesn't wire everything manually:
+
+```cpp
+class GameFactory {
+public:
+    static Game* createStandardGame() {
+        Board* board = new Board(100);
+        board->setupBoard(new StandardSetupStrategy());
+        return new Game(board, new Dice(6));
+    }
+
+    static Game* createRandomGame(int boardSize, RandomSetupStrategy::Difficulty d) {
+        Board* board = new Board(boardSize);
+        board->setupBoard(new RandomSetupStrategy(d));
+        return new Game(board, new Dice(6));
+    }
+
+    static Game* createCustomGame(int boardSize, BoardSetupStrategy* strategy) {
+        Board* board = new Board(boardSize);
+        board->setupBoard(strategy);
+        return new Game(board, new Dice(6));
+    }
+};
+```
+
+Relationship: `GameFactory ──creates──► Game` (i.e. *Factory has-a Game*).
+
+---
+
+### 5.12 `main()` — client
+
+```cpp
+int main() {
+    srand(time(0));
+
+    cout << "Choose game type:\n1. Standard\n2. Random\n3. Custom\n> ";
+    int choice; cin >> choice;
+
+    Game* game = nullptr;
+
+    if (choice == 1) {
+        game = GameFactory::createStandardGame();
+    } else if (choice == 2) {
+        int boardSize; cout << "Board size: "; cin >> boardSize;
+        cout << "Difficulty (1=Easy 2=Medium 3=Hard): ";
+        int d; cin >> d;
+        auto diff = (d == 1) ? RandomSetupStrategy::Difficulty::EASY
+                  : (d == 2) ? RandomSetupStrategy::Difficulty::MEDIUM
+                             : RandomSetupStrategy::Difficulty::HARD;
+        game = GameFactory::createRandomGame(boardSize, diff);
+    } else if (choice == 3) {
+        int boardSize, snakes, ladders, mode;
+        cout << "Board size: "; cin >> boardSize;
+        cout << "Number of snakes: "; cin >> snakes;
+        cout << "Number of ladders: "; cin >> ladders;
+        cout << "Randomize positions? (1=yes 0=no): "; cin >> mode;
+
+        auto* strat = new CustomCountSetupStrategy(snakes, ladders, mode == 1);
+        if (mode == 0) {
+            for (int i = 0; i < snakes; i++) {
+                int s, e; cout << "Snake head/tail: "; cin >> s >> e;
+                strat->addSnakePosition(s, e);
+            }
+            for (int i = 0; i < ladders; i++) {
+                int s, e; cout << "Ladder bottom/top: "; cin >> s >> e;
+                strat->addLadderPosition(s, e);
+            }
+        }
+        game = GameFactory::createCustomGame(boardSize, strat);
+    } else {
+        cout << "Invalid choice\n"; return 0;
+    }
+
+    game->addObserver(new SnakeAndLadderConsoleNotifier());
+
+    int numPlayers; cout << "Number of players: "; cin >> numPlayers;
+    for (int i = 0; i < numPlayers; i++) {
+        string name; cout << "Player " << i + 1 << " name: "; cin >> name;
+        game->addPlayer(new Player(i + 1, name));
+    }
+
+    game->play();
+    return 0;
+}
+```
+
+**Sample run (from the tutorial):** Standard game, players *Aditya* and *Harshita* → board prints 10 snakes & 11 ladders → "Aditya's turn, press Enter" → dice rolls → positions update → snake sends a player back from ~97 to 54 → eventually Aditya reaches exactly 100 → **"Aditya wins, game ended."**
+
+---
+
+## 6. Sequence / Flow Diagram
+
+```
+Client          Game            Players(queue)      Dice        RuleStrategy        Board        Observers
+  │               │                   │              │              │                │              │
+  │──play()──────►│                   │              │              │                │              │
+  │               │──front()─────────►│              │              │                │              │
+  │               │◄─current player───│              │              │                │              │
+  │               │──roll()──────────────────────────►│              │                │              │
+  │               │◄─diceValue───────────────────────│              │                │              │
+  │               │──isValidMove(pos,dice,size)────────────────────►│                │              │
+  │               │◄─true/false──────────────────────────────────────│                │              │
+  │               │                                                  │                │              │
+  │               │  [if invalid] ──push back to queue, continue     │                │              │
+  │               │                                                  │                │              │
+  │               │──calculateNewPosition(pos,dice,board)───────────►│                │              │
+  │               │                                                  │──getEntity(pos)►│              │
+  │               │                                                  │◄─snake/ladder───│              │
+  │               │◄─newPosition (entity->end or pos+dice)───────────│                │              │
+  │               │──setPosition(newPos)──► Player                  │                │              │
+  │               │──notify("snake bitten!")───────────────────────────────────────────────────────►│
+  │               │──displayPlayerPosition() / board->display()     │                │              │
+  │               │──checkWinCondition(newPos,size)─────────────────►│                │              │
+  │               │◄─true/false──────────────────────────────────────│                │              │
+  │               │  [win]  → isGameOver = true, notify, exit loop   │                │              │
+  │               │  [lose] → push player back to queue, repeat      │                │              │
+  │◄──game over───│                                                  │                │              │
+```
+
+---
+
+## 7. Design Principles & Patterns Used
+
+| Concept | Where | Why |
+|---|---|---|
+| **Top-Down Design** | Start at `Game` → discover `Board`, `Dice`, `Player`, `Rule`, `Observer` | Games are naturally orchestrator-first |
+| **Strategy Pattern** | `BoardSetupStrategy` (Standard / Random / Custom) | Swap board population logic without touching `Board` |
+| **Strategy Pattern** | `RuleStrategy` → `StandardSnakeAndLadderRules` | Rules can be extended/replaced independently |
+| **Observer Pattern** | `IObserver` + `ConsoleNotifier`; `Game` is the observable | Decoupled notifications (console now, UI later) |
+| **Factory Pattern** | `GameFactory::createStandardGame/RandomGame/CustomGame` | Client doesn't wire up the object graph |
+| **Abstraction of similar things** | `BoardEntity` → `Snake` + `Ladder` | Both are "cell → cell" movements; one vector, one map |
+| **Single Responsibility** | `Board` is a "dumb object" | It only stores cells & entities — not rules, not winning |
+| **Strong Composition** | `Game ◆— RuleStrategy`, `Board ◆— BoardEntity` | Rules can't exist without a game; snakes/ladders can't exist without a board |
+| **Scalability** | `Board(size)`, `Dice(faces)` | Board size and dice faces are constructor parameters |
+| **Encapsulation of O(1) lookups** | `unordered_map<int, BoardEntity*>` | Avoids O(n) scans of the entity list on every move |
+| **Round-robin via queue** | `queue<Player*>` | N-player support with zero index bookkeeping |
+
+---
+
+## 8. Interview Talking Points / Extensions Suggested
+
+1. **"The board is not a 2D matrix"** — say this out loud; it's the biggest differentiator in the answer.
+2. **Extend rules**: e.g. "must land exactly", "bounce back from the end", "two dice", "extra turn on a 6", "ladder + snake chaining", "poison ladder". Add them as new `RuleStrategy` subclasses.
+3. **New setup strategies**: e.g. "mirror board", "density-based", "difficulty by maximum snake length".
+4. **New observers**: `FileNotifier`, `EmailNotifier`, `UIUpdateNotifier` — no change to `Game`.
+5. **Persistence**: serialize `Board`'s `unordered_map` to save/load a game.
+6. **Multi-threading / real-time**: `Dice::roll()` can be swapped for an async/UI event source; the `Game` loop stays the same.
+7. **Ordering of setup**: entity placement must respect `canAddEntity()` — mention that collision-free placement is the non-trivial part of the Random/Custom strategies.
+
+---
+
+## 9. Complete File/Class Checklist
+
+```
+BoardEntity (abstract) ── Snake, Ladder
+Board                    (size, entities vector, entityMap, canAddEntity, addEntity,
+                          getEntity, setupBoard, display)
+BoardSetupStrategy (abstract) ── StandardSetupStrategy
+                              ── RandomSetupStrategy (nested enum Difficulty)
+                              ── CustomCountSetupStrategy
+Dice                     (faces, roll)
+Player                   (id, name, position, score)
+RuleStrategy (abstract)  ── StandardSnakeAndLadderRules
+                              (isValidMove, calculateNewPosition, checkWinCondition)
+IObserver (abstract)     ── SnakeAndLadderConsoleNotifier (update)
+Game                     (board, dice, players queue, rules, observers, isGameOver,
+                          addPlayer, addObserver, notify, displayPlayerPosition, play)
+GameFactory              (createStandardGame, createRandomGame, createCustomGame)
+main()                   (choose game type → configure → add players → play)
+```
+
+That's the entire LLD — every requirement (scalable board, extensible rules, three setup strategies, notifications) is satisfied by a named class, and the game loop stays a clean 30-line `play()` method.
+
+---
+
+## 35. Mediator Design Pattern | Build Chat Room | UML + Code (48:04)
 
 summaries system design tutorial transcript in details along with useful code examples and diagrams
