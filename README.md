@@ -23119,4 +23119,332 @@ The two UML diagrams look almost identical — both have a central object with 1
 
 ## 36. Prototype Design Pattern | UML + Code (31:30)
 
+## 1. Introduction
+
+The **Prototype Design Pattern** is a creational pattern that lets you create new objects by **copying (cloning) an existing instance** instead of creating new ones from scratch. It's simple but solves a very specific problem — and many languages (Java, C++) already provide built-in support for it.
+
+> **One-liner definition (from transcript):**  
+> *"Prototype Design Pattern lets you create new objects by copying or cloning another instance."*
+
+---
+
+## 2. The Problem It Solves
+
+### The naive approach (without Prototype)
+
+```cpp
+// Every new object means calling the expensive constructor
+A* a1 = new A();   // costly
+A* a2 = new A();   // costly again
+A* a3 = new A();   // costly again
+```
+
+Each `new A()` call:
+- Allocates a new chunk of heap memory
+- Runs the constructor, which may involve **expensive operations**:
+  - Database connection establishment
+  - Complex calculations
+  - Loading heavy files / images
+  - Network requests
+
+**Cost = Time.** If object creation takes 2–5 seconds, creating 100 objects is disastrous.
+
+### Real-world example: NPCs in Games
+
+- **NPC** = Non-Player Character (computer-generated characters, e.g., pedestrians in GTA)
+- Creating an NPC is **expensive** (load images, query database, etc.)
+- A game may need **hundreds of NPCs** at load time
+- Most NPCs are **almost identical** (few small differences: name, health, attack, defense)
+
+**Without Prototype:** `new NPC(...)` called 100 times → huge memory + time waste.
+
+---
+
+## 3. The Solution: Clone Instead of Create
+
+1. Create **one** object using the expensive constructor.
+2. For every additional object, **clone** the existing one.
+3. Tweak only the small differences using setters.
+
+Cloning is cheap because it **copies values** — no database calls, no complex calculations, no new `new` operator through the expensive constructor.
+
+```cpp
+NPC* n1 = new NPC("Alien", 30, 5, 2);  // expensive — 5 seconds
+NPC* n2 = n1->clone();                  // cheap — instant copy
+n2->setName("Powerful Alien");
+n2->setHealth(50);
+```
+
+---
+
+## 4. UML Diagram (Standard)
+
+```
+┌─────────────┐         ┌──────────────────────┐
+│   Client    │────────▶│     Prototype        │  (abstract class / interface)
+│             │         │  + clone() : Prototype│
+│ + execute() │         └──────────▲───────────┘
+└─────────────┘                    │
+                                   │ inherits / implements
+                        ┌──────────┴───────────┐
+                        │  ConcretePrototype   │
+                        │                      │
+                        │ + ConcretePrototype  │  (copy constructor)
+                        │   (ConcretePrototype)│
+                        │ + clone() : Prototype│  → return new ConcretePrototype(this)
+                        └──────────────────────┘
+```
+
+### Roles
+
+| Role | Responsibility |
+|------|----------------|
+| **Prototype** (Cloneable) | Abstract class/interface declaring `clone()`. Acts as a **marker** — signals "this is cloneable." |
+| **ConcretePrototype** (NPC) | Implements `clone()`, has a **copy constructor**. |
+| **Client** | Holds a reference to Prototype and calls `clone()` to get new objects. |
+
+> In Java this is the **marker interface** (`Cloneable`). In C++ it's a **pure abstract class**.
+
+---
+
+## 5. Code Example (C++)
+
+### 5.1 Without Prototype — the problem
+
+```cpp
+class NPC {
+    string name;
+    int health;
+    int attack;
+    int defense;
+public:
+    // EXPENSIVE constructor (DB call, complex calculation, etc.)
+    NPC(string name, int health, int attack, int defense) {
+        // ... expensive setup here (simulated 5 sec) ...
+        this->name = name;
+        this->health = health;
+        this->attack = attack;
+        this->defense = defense;
+    }
+    void describe() {
+        cout << name << " HP=" << health
+             << " ATK=" << attack << " DEF=" << defense << endl;
+    }
+};
+
+int main() {
+    NPC* alien = new NPC("Alien", 30, 5, 2);     // expensive
+    alien->describe();
+
+    // Need another similar alien → must pay the expensive cost AGAIN
+    NPC* powerfulAlien = new NPC("Powerful Alien", 30, 5, 5); // expensive
+    powerfulAlien->describe();
+
+    // 100 aliens → 100 expensive constructor calls ❌
+}
+```
+
+---
+
+### 5.2 With Prototype — the solution
+
+```cpp
+// -------- Prototype (pure abstract / marker) --------
+class Cloneable {
+public:
+    virtual Cloneable* clone() = 0;
+    virtual ~Cloneable() {}
+};
+
+// -------- Concrete Prototype --------
+class NPC : public Cloneable {
+    string name;
+    int health;
+    int attack;
+    int defense;
+public:
+    // Expensive constructor — called ONCE
+    NPC(string name, int health, int attack, int defense) {
+        // ... DB call / complex calc / file load ...
+        this->name = name;
+        this->health = health;
+        this->attack = attack;
+        this->defense = defense;
+    }
+
+    // Copy constructor — CHEAP, just copies values
+    NPC(const NPC& other) {
+        this->name    = other.name;
+        this->health  = other.health;
+        this->attack  = other.attack;
+        this->defense = other.defense;
+    }
+
+    // clone() calls the COPY constructor, NOT the expensive one
+    Cloneable* clone() override {
+        return new NPC(*this);
+    }
+
+    void describe() {
+        cout << name << " HP=" << health
+             << " ATK=" << attack << " DEF=" << defense << endl;
+    }
+
+    // Setters for small tweaks
+    void setName(string n)   { name = n; }
+    void setHealth(int h)    { health = h; }
+    void setAttack(int a)    { attack = a; }
+    void setDefense(int d)   { defense = d; }
+};
+
+// -------- Client --------
+int main() {
+    NPC* alien = new NPC("Alien", 30, 5, 2);   // expensive — once
+    alien->describe();
+
+    // Clone — cheap!
+    NPC* alienCopy = dynamic_cast<NPC*>(alien->clone());
+    alienCopy->describe();
+
+    // Clone + tweak small differences
+    NPC* powerfulAlien = dynamic_cast<NPC*>(alien->clone());
+    powerfulAlien->setName("Powerful Alien");
+    powerfulAlien->setHealth(50);
+    powerfulAlien->describe();
+
+    // 100 aliens → 1 expensive creation + 99 cheap clones ✅
+}
+```
+
+> **Key trick:** `clone()` does `return new NPC(*this);` — it invokes the **copy constructor**, bypassing the expensive parameterized constructor entirely.
+
+---
+
+## 6. How `clone()` Works Under the Hood
+
+```
+Client calls:  npc->clone()
+                    │
+                    ▼
+        ┌───────────────────────┐
+        │  NPC(Cloneable* other)│   ← copy constructor invoked
+        │  name    = other.name │
+        │  health  = other.health│
+        │  attack  = other.attack│
+        │  defense = other.defense│
+        └───────────────────────┘
+                    │
+                    ▼
+        returns new NPC with copied values
+```
+
+The expensive constructor (with DB calls/calculations) is **never called again**. Only the trivial copy constructor runs.
+
+---
+
+## 7. Shallow Copy vs Deep Copy
+
+This is critical when your object contains **non-primitive** members (pointers, references to other objects).
+
+### Shallow Copy
+
+Only **references** are copied — both objects point to the **same heap memory**.
+
+```cpp
+class NPC {
+    string name;
+    Student* s1;   // non-primitive member
+
+    // SHALLOW copy
+    NPC(const NPC& n) {
+        this->name = n.name;
+        this->s1   = n.s1;   // ⚠️ both point to same Student
+    }
+};
+```
+
+```
+OBJ1.s1 ────┐
+            ├──▶ [ Student object on Heap ]
+OBJ2.s1 ────┘
+```
+Changing the Student via OBJ2 also changes it for OBJ1. ❌
+
+### Deep Copy
+
+Actually **duplicates** the heap memory — each object gets its own independent copy.
+
+```cpp
+class NPC {
+    string name;
+    Student* s1;
+
+    // DEEP copy
+    NPC(const NPC& n) {
+        this->name = n.name;
+        this->s1   = new Student(*n.s1);  // ✅ new heap allocation
+    }
+};
+```
+
+```
+OBJ1.s1 ────▶ [ Student copy #1 ]
+OBJ2.s1 ────▶ [ Student copy #2 ]
+```
+Changes are independent. ✅
+
+> **Rule of thumb:** For Prototype with pointer members, use **deep copy** unless you explicitly want shared state.
+
+---
+
+## 8. Real-World Use Cases
+
+| Scenario | Why Prototype fits |
+|----------|-------------------|
+| **Game NPCs / enemies** | Many similar characters, few attribute differences |
+| **Expensive DB-backed objects** | Avoid repeated DB connections/queries |
+| **Complex configuration objects** | Clone a base config, tweak a few fields |
+| **Document/Graphic editors** | Clone shapes, text boxes, etc. |
+| **Machine learning models / cached data** | Clone pre-computed objects |
+| **Any object where `new` is costly** | 1 expensive creation + N cheap clones |
+
+### When NOT to use it
+- Objects are **highly dissimilar** (every value differs) → cloning gains nothing; you'd just call all setters anyway.
+- Objects are **cheap** to create normally.
+
+---
+
+## 9. Key Takeaways
+
+1. **Problem:** Repeated object creation is expensive (time + memory).
+2. **Solution:** Create once → clone many times.
+3. **Mechanism:** `clone()` + **copy constructor**.
+4. **Marker interface** (`Cloneable` / pure abstract class) signals cloneability.
+5. **Shallow vs Deep copy** matters for non-primitive members — prefer deep copy for safety.
+6. **Best suited** when you need many **similar** objects with **small differences** and **expensive creation**.
+7. **Java** has built-in `Cloneable` + `Object.clone()`; **C++** implements it via pure abstract class + copy constructor.
+
+---
+
+## 10. Quick Reference — Full Flow
+
+```
+┌──────────┐    clone()    ┌──────────────┐   copy ctor   ┌──────────────┐
+│  Client  │──────────────▶│  Concrete    │──────────────▶│  New Object  │
+│          │               │  Prototype   │               │  (cheap copy)│
+└──────────┘               └──────────────┘               └──────────────┘
+                                   ▲
+                                   │ inherits
+                          ┌────────┴────────┐
+                          │   Prototype     │
+                          │  + clone()      │
+                          └─────────────────┘
+```
+
+**One expensive creation → unlimited cheap clones.** That's the Prototype pattern in a nutshell.
+
+---
+
+## 37. Build Chess Game | UML + Code (1:53:14)
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
