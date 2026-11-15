@@ -22694,4 +22694,429 @@ That's the entire LLD — every requirement (scalable board, extensible rules, t
 
 ## 35. Mediator Design Pattern | Build Chat Room | UML + Code (48:04)
 
+This tutorial explains the **Mediator Design Pattern** through a chat-room example. It first shows the "bad design" (without mediator), then refactors it with the mediator, and finally compares it with the Observer pattern.
+
+---
+
+## 1. The Problem: Tight Coupling Between Objects
+
+Imagine objects `OB1`, `OB2`, `OB3`, … that need to communicate directly. Each object must store a reference to every other object it talks to.
+
+- With **n objects**, each object needs **n − 1 references**.
+- Total connections ≈ **n(n − 1) / 2**.
+- Adding a new object means **modifying every existing object's list** → tight coupling, more memory, harder to extend.
+
+```
+Without Mediator (n = 4):
+
+   OB1 ───── OB2
+    │ ╲      ╱ │
+    │  ╲    ╱  │
+    │   ╲  ╱   │
+    │    ╳     │
+    │   ╱  ╲   │
+    │  ╱    ╲  │
+    │ ╱      ╲ │
+   OB4 ───── OB3
+
+Each object holds references to all other n−1 objects.
+```
+
+**Goal:** Avoid this tightly coupled mesh while still allowing objects to communicate.
+
+---
+
+## 2. Mediator Solution
+
+Introduce a central **Mediator** object. Colleagues no longer know each other; they only know the mediator.
+
+- Each colleague holds **one reference** (to the mediator).
+- The mediator holds **references to all colleagues**.
+- Communication flows: `Colleague A → Mediator → Colleague B`.
+- Only **one place** (the mediator) maintains the "who talks to whom" list.
+
+```
+With Mediator:
+
+   OB1        OB2
+     ╲        ╱
+      ╲      ╱
+       ╲    ╱
+       Mediator
+       ╱    ╲
+      ╱      ╲
+     ╱        ╲
+   OB4        OB3
+
+Every colleague knows only the Mediator.
+The Mediator knows all colleagues.
+```
+
+**Benefits:**
+- **Loose coupling** — colleagues are independent of each other.
+- **Centralized control** — routing/list logic lives in one place.
+- **Easier extension** — adding features (mute, login, private send) touches the mediator, not every colleague.
+
+---
+
+## 3. Chat Room — Bad Design (Without Mediator)
+
+### 3.1 UML (Bad Design)
+
+```
+┌─────────────────────────────┐
+│            User             │
+├─────────────────────────────┤
+│ - name: string              │
+│ - peers: vector<User*>      │  ◄── each user stores all other users
+│ - muted: vector<string>     │  ◄── names of muted users
+├─────────────────────────────┤
+│ + addPeer(User*)            │
+│ + mute(User*)               │
+│ + send(string msg)          │  // broadcast to all peers
+│ + sendTo(User*, string msg) │  // private message
+│ + receive(string from,      │
+│           string msg)       │
+│ + isMuted(string name):bool │
+└─────────────────────────────┘
+        ▲            ▲
+        │            │
+       U1           U2  ...  Un
+
+Each user ↔ every other user  →  n(n−1)/2 connections.
+```
+
+### 3.2 Bad Design Code (C++-style)
+
+```cpp
+class User {
+    string name;
+    vector<User*> peers;      // all other users
+    vector<string> muted;     // names this user muted
+
+public:
+    User(string n) : name(n) {}
+
+    void addPeer(User* u) { peers.push_back(u); }
+
+    void mute(User* u) { muted.push_back(u->getName()); }
+
+    bool isMuted(const string& n) {
+        for (auto& m : muted)
+            if (m == n) return true;
+        return false;
+    }
+
+    // Broadcast
+    void send(const string& msg) {
+        cout << "[BROADCAST] " << name << ": " << msg << "\n";
+        for (auto* p : peers) {
+            if (p->isMuted(name)) continue;   // skip if they muted me
+            p->receive(name, msg);
+        }
+    }
+
+    // Private
+    void sendTo(User* target, const string& msg) {
+        if (target->isMuted(name)) {
+            cout << "Message muted by " << target->getName() << "\n";
+            return;
+        }
+        target->receive(name, msg);
+    }
+
+    void receive(const string& from, const string& msg) {
+        cout << name << " got from " << from << ": " << msg << "\n";
+    }
+
+    string getName() const { return name; }
+};
+```
+
+### 3.3 Wiring in `main` (the pain)
+
+```cpp
+User rohan("Rohan"), neha("Neha"), mohan("Mohan");
+
+// n(n−1)/2 manual connections
+rohan.addPeer(&neha);   neha.addPeer(&rohan);
+rohan.addPeer(&mohan);  mohan.addPeer(&rohan);
+neha.addPeer(&mohan);   mohan.addPeer(&neha);
+
+rohan.mute(&mohan);                 // Rohan mutes Mohan
+rohan.send("Hello everyone");       // broadcast
+mohan.sendTo(&neha, "Hey Neha");    // private
+```
+
+### 3.4 Problems with the Bad Design
+
+| Problem | Detail |
+|---|---|
+| **n² wiring** | Every new user needs manual links to all others. |
+| **Memory blow-up** | Each user stores n − 1 references; plus a `muted` list. |
+| **Tight coupling** | Changing one user affects all. |
+| **Feature creep** | Adding mute/login/private forces edits inside `User`; Open/Closed principle broken. |
+| **Multiple lists** | `peers` + `muted` grow together, becoming unmanageable. |
+
+---
+
+## 4. Mediator Pattern — UML
+
+### 4.1 Abstract roles
+
+- **IMediator** — declares messaging operations + registration.
+- **IColleague** — declares `send`/`receive` and holds a mediator reference.
+- **ConcreteMediator** — stores all colleagues and (optionally) extra state like muted pairs.
+- **ConcreteColleague** — a real participant (e.g., `User`).
+
+### 4.2 UML Diagram
+
+```
+        ┌───────────────────────┐
+        │     «abstract»        │
+        │      IMediator        │
+        ├───────────────────────┤
+        │ + register(Colleague) │
+        │ + send(from, msg)     │
+        │ + sendTo(from,to,msg) │
+        └───────────▲───────────┘
+                    │ implements
+        ┌───────────┴───────────┐
+        │    ChatMediator       │
+        ├───────────────────────┤
+        │ - colleagues: List    │  1..*
+        │ - muted: vector<pair> │
+        ├───────────────────────┤
+        │ + register(...)       │
+        │ + send(...)           │
+        │ + sendTo(...)         │
+        │ + mute(userA,userB)   │
+        └───────────┬───────────┘
+                    │ mediates
+                    │ 1
+                    │
+                    │ *
+        ┌───────────▼───────────┐
+        │     «abstract»        │
+        │      Colleague        │
+        ├───────────────────────┤
+        │ - mediator: IMediator │
+        ├───────────────────────┤
+        │ + setMediator(m)      │
+        │ + send(msg)           │
+        │ + receive(from,msg)   │
+        └───────────▲───────────┘
+                    │ extends
+        ┌───────────┴───────────┐
+        │         User          │
+        ├───────────────────────┤
+        │ - name: string        │
+        ├───────────────────────┤
+        │ + send(msg)           │
+        │ + sendTo(to,msg)      │
+        │ + receive(...)        │
+        └───────────────────────┘
+```
+
+Key cardinalities:
+- `ChatMediator ◆── 1..* Colleague`
+- `Colleague ◆── 1 IMediator`
+
+---
+
+## 5. Chat Room — With Mediator
+
+### 5.1 `IMediator` interface
+
+```cpp
+class Colleague; // forward
+
+class IMediator {
+public:
+    virtual void registerColleague(Colleague* c) = 0;
+    virtual void send(const string& from, const string& msg) = 0;                 // broadcast
+    virtual void sendTo(const string& from, const string& to, const string& msg) = 0; // private
+    virtual ~IMediator() = default;
+};
+```
+
+### 5.2 `Colleague` abstract base
+
+```cpp
+class IMediator;
+
+class Colleague {
+protected:
+    IMediator* mediator;
+public:
+    Colleague(IMediator* m) : mediator(m) {
+        mediator->registerColleague(this);   // auto-register on construction
+    }
+    virtual void send(const string& msg) = 0;
+    virtual void sendTo(const string& to, const string& msg) = 0;
+    virtual void receive(const string& from, const string& msg) = 0;
+    virtual string getName() const = 0;
+    virtual ~Colleague() = default;
+};
+```
+
+### 5.3 `ChatMediator` (concrete)
+
+```cpp
+class ChatMediator : public IMediator {
+    vector<Colleague*> colleagues;
+    vector<pair<string,string>> muted;   // (muter, muted)
+
+public:
+    void registerColleague(Colleague* c) override {
+        colleagues.push_back(c);
+    }
+
+    void mute(const string& who, const string& whom) {
+        muted.push_back({who, whom});
+    }
+
+    bool isMuted(const string& who, const string& whom) {
+        for (auto& p : muted)
+            if (p.first == who && p.second == whom) return true;
+        return false;
+    }
+
+    void send(const string& from, const string& msg) override {
+        cout << "[BROADCAST] " << from << ": " << msg << "\n";
+        for (auto* c : colleagues) {
+            if (c->getName() == from) continue;       // don't send to self
+            if (isMuted(c->getName(), from)) continue; // recipient muted sender
+            c->receive(from, msg);
+        }
+    }
+
+    void sendTo(const string& from, const string& to, const string& msg) override {
+        for (auto* c : colleagues) {
+            if (c->getName() == to) {
+                if (isMuted(to, from)) {
+                    cout << "Message muted by " << to << "\n";
+                    return;
+                }
+                c->receive(from, msg);
+                return;
+            }
+        }
+    }
+};
+```
+
+### 5.4 `User` (concrete colleague)
+
+```cpp
+class User : public Colleague {
+    string name;
+public:
+    User(const string& n, IMediator* m) : Colleague(m), name(n) {}
+
+    void send(const string& msg) override {
+        mediator->send(name, msg);
+    }
+
+    void sendTo(const string& to, const string& msg) override {
+        mediator->sendTo(name, to, msg);
+    }
+
+    void receive(const string& from, const string& msg) override {
+        cout << name << " got from " << from << ": " << msg << "\n";
+    }
+
+    string getName() const override { return name; }
+};
+```
+
+### 5.5 Clean `main` — no n² wiring
+
+```cpp
+ChatMediator chat;                               // single mediator
+User rohan("Rohan", &chat);
+User neha("Neha",   &chat);
+User mohan("Mohan", &chat);                     // auto-registered
+
+chat.mute("Rohan", "Mohan");                    // Rohan mutes Mohan
+rohan.send("Hello everyone");                   // broadcast
+mohan.sendTo("Neha", "Hey Neha");               // private
+```
+
+**Output (matching the tutorial):**
+
+```
+[BROADCAST] Rohan: Hello everyone
+Neha got from Rohan: Hello everyone
+Mohan got from Rohan: Hello everyone
+Neha got from Mohan: Hey Neha
+```
+
+Note: Only one place (the mediator) maintains routing and mute state. Users don't know each other.
+
+---
+
+## 6. Standard Mediator UML (as presented)
+
+```
+┌────────────────────┐          ┌──────────────────────┐
+│    «interface»     │          │     «abstract»       │
+│     IMediator      │          │      Colleague       │
+├────────────────────┤          ├──────────────────────┤
+│ + add(colleague)   │◄─────────│ - mediator: IMediator│
+│ + sendMessage(msg) │   1   *  │ + setMediator(m)     │
+└─────────▲──────────┘          │ + send(msg)          │
+          │                     │ + receive(msg)       │
+          │ implements          └──────────▲───────────┘
+          │                                │ extends
+┌─────────┴──────────┐          ┌──────────┴───────────┐
+│  ConcreteMediator  │          │  ConcreteColleague   │
+├────────────────────┤          ├──────────────────────┤
+│ - colleagues: List │          │ + send(msg)          │
+│ + add(...)         │          │ + receive(msg)       │
+│ + sendMessage(...) │          └──────────────────────┘
+└────────────────────┘
+```
+
+- **IMediator**: `add(colleague)`, `sendMessage(msg)`
+- **Colleague**: holds a mediator reference, `setMediator`, `send`, `receive`
+- **ConcreteMediator**: keeps `List<Colleague>` (1-to-many) and overrides the messaging logic
+- **ConcreteColleague**: overrides `send`/`receive`
+
+---
+
+## 7. Mediator vs Observer Pattern
+
+The two UML diagrams look almost identical — both have a central object with 1-to-many references. The **intent** differs:
+
+| Aspect | Observer | Mediator |
+|---|---|---|
+| **Central object** | `Observable` (subject) | `Mediator` |
+| **Participants** | `Observer`s wait for state changes | `Colleague`s want to talk to each other |
+| **Why they register** | To be **notified** when subject's state changes | To **communicate** with other colleagues |
+| **Communication direction** | One-way: subject → observers (via `notify`/`update`) | Many-way: colleague ↔ colleague (via mediator routing) |
+| **Who triggers** | Subject changes state → notifies all | Colleague sends a message → mediator routes it |
+| **Typical methods** | `register`, `remove`, `notify`, `update` | `register`, `send`/`sendAll`/`sendTo`, `receive` |
+| **Coupling removed** | Subject decoupled from concrete observers | Colleagues decoupled from each other |
+| **Goal** | **Broadcast state changes** | **Coordinate interactions** between peers |
+
+**In short:**
+- **Observer** = "Tell me when *you* change."
+- **Mediator** = "I want to talk to *someone else*; you route my message."
+
+---
+
+## 8. Key Takeaways
+
+1. **Mediator solves the n² wiring problem** by introducing a central hub. Each colleague holds 1 reference, not n − 1.
+2. **Loose coupling**: colleagues don't know each other; they only know the mediator.
+3. **Single point of control**: routing, mute lists, broadcast logic live in the mediator — easy to extend without touching every user.
+4. **Standard structure**: `IMediator` / `ConcreteMediator` + `Colleague` / `ConcreteColleague`, with 1-to-many cardinality from mediator to colleagues.
+5. **Similar to Observer in shape but different in intent** — Observer broadcasts state changes; Mediator coordinates peer-to-peer communication.
+6. **Trade-off**: the mediator can become a "god object" if it accumulates too much logic; keep it focused on coordination.
+
+---
+
+## 36. Prototype Design Pattern | UML + Code (31:30)
+
 summaries system design tutorial transcript in details along with useful code examples and diagrams
